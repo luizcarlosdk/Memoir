@@ -4,7 +4,7 @@ from typing import Optional, list
 from ABC import ABC, abstractmethod
 
 
-class transcriptSegment:
+class TranscriptSegment:
     speaker: str
     text: str
     timestamp_start: Optional[str] = None
@@ -14,9 +14,9 @@ class transcriptSegment:
 @dataclass
 class TranscriptParser(ABC):
     @abstractmethod
-    def can_parse(self, transcript: str) -> bool:
+    def can_parse(self, raw_transcript: str) -> bool:
         pass
 
     @abstractmethod
-    def parse(self, transcript: str) -> list[transcriptSegment]:
+    def parse(self, raw_transcript: str) -> list[transcriptSegment]:
         pass

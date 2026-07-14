@@ -1,11 +1,11 @@
-from app.parsers import transcriptSegment, TranscriptParser
+from app.parsers import TranscriptSegment, TranscriptParser
 
 
 class GoogleMeetParser(TranscriptParser):
-    def can_parse(self, transcript: str) -> bool:
-        pass
+    def can_parse(self, raw_transcript: str) -> bool:
+        return True
 
-    def parse(self, transcript: str) -> list[transcriptSegment]:
+    def parse(self, transcript: str) -> list[TranscriptSegment]:
         parsed_transcript = []
 
         return parsed_transcript
