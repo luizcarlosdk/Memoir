@@ -1,15 +1,18 @@
 from app.parsers import google_meet, zoom
-from app.parsers.base import TranscriptParser, TranscriptSegment
+from app.parsers.base import BaseTranscriptParser, TranscriptSegment
 
 
 class TranscriptOrchestrator:
     def __init__(self):
-        self.parsers: list[TranscriptParser] = [
+        self.parsers: list[BaseTranscriptParser] = [
             google_meet.GoogleMeetParser(),
             zoom.ZoomParser(),
         ]
 
     def detect_and_parse(self, raw_transcript: str) -> list[TranscriptSegment]:
+        if not raw_transcript.strip():
+            return []
+
         for parser in self.parsers:
             if parser.can_parse(raw_transcript):
                 return parser.parse(raw_transcript)
