@@ -18,5 +18,5 @@ class TranscriptParser(ABC):
         pass
 
     @abstractmethod
-    def parse(self, raw_transcript: str) -> list[transcriptSegment]:
+    def parse(self, raw_transcript: str) -> list[TranscriptSegment]:
         pass

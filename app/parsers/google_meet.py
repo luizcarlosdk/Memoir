@@ -6,6 +6,6 @@ class GoogleMeetParser(TranscriptParser):
         return True
 
     def parse(self, transcript: str) -> list[TranscriptSegment]:
-        parsed_transcript = []
+        segments = []
 
-        return parsed_transcript
+        return segments
