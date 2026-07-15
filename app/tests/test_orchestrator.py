@@ -9,11 +9,18 @@ from app.orchestrator import TranscriptOrchestrator
 from app.parsers.llm import LLMParser
 
 
-FIXTURES_DIR = Path(__file__).resolve().parent / "app" / "tests"
+FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 
 
 def list_fixtures(pattern: str) -> list[Path]:
-    return sorted(FIXTURES_DIR.glob(pattern))
+    return sorted(
+        (
+            p
+            for p in FIXTURES_DIR.rglob(pattern)
+            if p.is_file() and "__pycache__" not in p.parts
+        ),
+        key=lambda p: p.name,
+    )
 
 
 def load_fixture(path: Path) -> str:
@@ -53,7 +60,10 @@ def test_google_meet_parser(
     )
 
 
-@pytest.mark.parametrize("fixture_path", list_fixtures("*"))
+@pytest.mark.parametrize(
+    "fixture_path",
+    list_fixtures("zoom*.vtt") + list_fixtures("googlemeet*.txt"),
+)
 def test_all_mock_files_parse(
     orchestrator: TranscriptOrchestrator, fixture_path: Path
 ) -> None:
@@ -78,7 +88,7 @@ def test_empty_transcript(orchestrator: TranscriptOrchestrator) -> None:
 def test_llm_parser_with_real_api(caplog) -> None:
     """Smoke test for the real Gemini-backed LLM parser.
 
-    Run with: pytest -m integration test_orchestrator.py::test_llm_parser_with_real_api -s
+    Run with: pytest -m integration app/tests/test_orchestrator.py::test_llm_parser_with_real_api -s
     """
     caplog.set_level(logging.INFO)
 

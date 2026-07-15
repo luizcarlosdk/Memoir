@@ -1,15 +1,19 @@
+import os
+
 from app.parsers import google_meet, zoom, llm
 from app.parsers.base import BaseTranscriptParser, TranscriptSegment
 
 
 class TranscriptOrchestrator:
-    def __init__(self, include_llm_fallback: bool = False):
+    def __init__(self):
         self.parsers: list[BaseTranscriptParser] = [
             google_meet.GoogleMeetParser(),
             zoom.ZoomParser(),
+            llm.LLMParser(
+                api_key=os.getenv("GOOGLE_API_KEY"),
+                model_name="gemini-3.1-flash-lite",
+            ),
         ]
-        if include_llm_fallback:
-            self.parsers.append(llm.LLMParser())
 
     def detect_and_parse(self, raw_transcript: str) -> list[TranscriptSegment]:
         if not raw_transcript.strip():
