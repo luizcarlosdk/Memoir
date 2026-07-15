@@ -1,0 +1,161 @@
+WEBVTT
+
+1
+00:00:03.500 --> 00:00:09.800
+Sarah Chen: Okay, I think everyone's here, so let's go ahead and get started. Thanks for hopping on, I know it's a little early for some of you.
+
+2
+00:00:10.100 --> 00:00:11.900
+Mike Torres: No worries, coffee's kicking in now.
+
+3
+00:00:12.400 --> 00:00:25.600
+Sarah Chen: Ha, good. So today's agenda is pretty short — we want to go over the Q3 campaign performance, talk through the budget reallocation Priya mentioned last week, and then James, you had an update on the landing page test?
+
+4
+00:00:26.000 --> 00:00:27.700
+James Okafor: Yep, I'll jump in when we get there.
+
+5
+00:00:28.200 --> 00:00:31.900
+Sarah Chen: Perfect. Mike, do you want to kick us off with the numbers?
+
+6
+00:00:32.400 --> 00:00:47.900
+Mike Torres: Sure, yeah. So overall the campaign is tracking about twelve percent above where we projected for this point in the quarter. Click-through rate on the email sequence is holding steady around four point two percent, which is actually higher than the industry benchmark we were using.
+
+7
+00:00:48.300 --> 00:00:49.700
+Sarah Chen: That's great to hear.
+
+8
+00:00:50.100 --> 00:01:02.700
+Mike Torres: Yeah, the one area that's a little soft is the paid social spend — conversion is there, but cost per acquisition crept up almost eighteen percent since the platform's algorithm update last month.
+
+9
+00:01:03.200 --> 00:01:05.800
+Priya Nair: Is that across all channels or just Instagram?
+
+10
+00:01:06.300 --> 00:01:14.600
+Mike Torres: Mostly Instagram, actually. Facebook's been pretty flat, LinkedIn's up slightly but the volume there is so small it doesn't move the needle much.
+
+11
+00:01:15.100 --> 00:01:18.500
+Priya Nair: Got it, that lines up with what I was going to bring up actually.
+
+12
+00:01:19.000 --> 00:01:19.900
+Sarah Chen: Go ahead.
+
+13
+00:01:20.300 --> 00:01:39.700
+Priya Nair: So the budget reallocation ask — I want to pull about fifteen percent out of the Instagram spend and shift it toward the newsletter and the retargeting campaign, since those are performing better right now. I don't think it needs to be permanent, just through end of quarter while we wait to see if the CPA issue resolves itself.
+
+14
+00:01:40.200 --> 00:01:44.900
+Sarah Chen: I'm supportive of that. Mike, does that match what you're seeing in the data?
+
+15
+00:01:45.400 --> 00:01:56.600
+Mike Torres: Yeah, honestly I'd probably go even a bit further, maybe twenty percent, but fifteen is a reasonable starting point. We can always adjust again after we see another two weeks of data.
+
+16
+00:01:57.100 --> 00:02:04.500
+Sarah Chen: Okay let's do fifteen for now then reassess. Priya, can you send over the updated budget doc by end of day tomorrow?
+
+17
+00:02:05.000 --> 00:02:07.400
+Priya Nair: Yep, I'll have that to you by tomorrow afternoon.
+
+18
+00:02:07.900 --> 00:02:13.800
+Sarah Chen: Great, thank you. Okay James, over to you for the landing page test.
+
+19
+00:02:14.300 --> 00:02:27.700
+James Okafor: Sure. So we wrapped the A/B test on the new signup flow last Friday. Variant B, which is the one with the shorter form and the single CTA button, converted about twenty-three percent better than the control.
+
+20
+00:02:28.100 --> 00:02:29.500
+Sarah Chen: Whoa, that's a big jump.
+
+21
+00:02:30.000 --> 00:02:40.800
+James Okafor: Yeah, it was bigger than we expected honestly. Statistical significance is well past the threshold, so I feel pretty confident recommending we roll it out to a hundred percent of traffic.
+
+22
+00:02:41.300 --> 00:02:48.600
+Mike Torres: Do we know if it's affecting downstream quality of leads at all? Like are we getting more junk signups because the form's easier?
+
+23
+00:02:49.100 --> 00:02:56.400
+James Okafor: Good question — I checked that. Lead quality score is basically unchanged, maybe a point lower but that's within noise.
+
+24
+00:02:57.000 --> 00:02:59.500
+Mike Torres: Okay, good, that was my only concern.
+
+25
+00:03:00.000 --> 00:03:09.700
+Sarah Chen: Alright, sounds like we should ship it then. James, can you coordinate with engineering on timing? I don't want it going out the same week as the newsletter relaunch.
+
+26
+00:03:10.200 --> 00:03:15.900
+James Okafor: Makes sense, I'll talk to the eng team today and try to get it scheduled for early next week instead.
+
+27
+00:03:16.400 --> 00:03:17.600
+Sarah Chen: Perfect.
+
+28
+00:03:18.100 --> 00:03:23.600
+Priya Nair: Sorry, quick tangent — when is the newsletter relaunch actually going out? I don't think I saw a final date.
+
+29
+00:03:24.100 --> 00:03:29.500
+Sarah Chen: We're targeting the twenty-second. I'll drop the date in the team channel after this so everyone has it.
+
+30
+00:03:30.000 --> 00:03:31.200
+Priya Nair: Great, thank you.
+
+31
+00:03:32.000 --> 00:03:35.600
+Sarah Chen: Okay, anything else before we wrap? Mike?
+
+32
+00:03:36.100 --> 00:03:39.700
+Mike Torres: Nothing from me, I'll send the full dashboard link around after the call.
+
+33
+00:03:40.200 --> 00:03:41.500
+Sarah Chen: Awesome. James?
+
+34
+00:03:42.000 --> 00:03:43.400
+James Okafor: Nope, all good.
+
+35
+00:03:44.000 --> 00:03:44.900
+Sarah Chen: Priya?
+
+36
+00:03:45.400 --> 00:03:46.900
+Priya Nair: All set, thanks everyone.
+
+37
+00:03:47.400 --> 00:03:52.900
+Sarah Chen: Great, thanks all, appreciate the updates. I'll send a short recap email with the action items. Talk soon.
+
+38
+00:03:53.400 --> 00:03:54.700
+Mike Torres: Sounds good, bye everyone.
+
+39
+00:03:55.100 --> 00:03:55.900
+James Okafor: Bye.
+
+40
+00:03:56.300 --> 00:03:57.400
+Priya Nair: Bye!

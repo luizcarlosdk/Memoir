@@ -1,0 +1,41 @@
+Transcript
+
+This editable transcript was computer generated and might contain errors. People can also change the text after it was created.
+
+Carlos Silva: 0:00
+Alright, let's get started. Thanks for jumping on the call everyone.
+We need to review the progress on the data reconciliation project today, especially since we have a hard deadline coming up at the end of the week. Ana, I know you were looking into the system logs yesterday.
+
+Ana Souza: 0:15
+Yes, I have the files ready. I spent the morning comparing the two lists to spot the discrepancies. 
+Let me share my screen so you can see what I'm looking at.
+Hold on, it says host has disabled screen sharing. Carlos, can you give me permissions?
+
+Carlos Silva: 0:32
+Oh, my bad. You should be good to go now. Try it again.
+Perfect, I can see your spreadsheet. Did you manage to cross-reference the "contas sendo tratadas pelo sistema" with the secondary list?
+
+Ana Souza: 0:41
+Yes. I put the "contas para tratar" right next to it.
+There are a few extra entries that shouldn't be there, and we are definitely missing some that the system should have picked up. If you scroll down to row 45, you'll see a massive block of accounts that just stopped syncing after last Tuesday.
+
+Carlos Silva: 1:05
+Wow, okay. That is a much larger discrepancy than I was expecting. 
+Marcos, you need to check the API error logs for last Tuesday night. Please identify exactly what caused that batch to fail.
+
+Marcos Lee: 1:18
+I can do that. I'll need the exact account IDs that failed, though. 
+
+Carlos Silva: 1:25
+Ana, please export the highlighted list of missing accounts as a CSV and send it to Marcos by end of day. 
+Also, you need to draft a quick summary email to the client letting them know we found a slight delay in the sync but are resolving it.
+
+Ana Souza: 1:35
+Got it. I will export the CSV right after this call and get that email drafted. 
+
+Marcos Lee: 1:48
+Thanks. Once I have the CSV, I will write a script to patch the missing accounts manually. I should have that done by tomorrow morning.
+
+Carlos Silva: 2:05
+Excellent. So just to recap the action items: Ana, you are sending the CSV and drafting the client email. Marcos, you need to check the logs and write the patch script. 
+Let's meet back here tomorrow at 10 AM to confirm it's fixed.

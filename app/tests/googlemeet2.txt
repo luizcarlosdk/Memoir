@@ -1,0 +1,32 @@
+Transcript
+
+This editable transcript was computer generated and might contain errors. People can also change the text after it was created.
+
+Julia: 0:00
+Hey Tiago, are we ready to set up the new tracking system for the shared expenses? 
+
+Tiago: 0:08
+Yes, I have Google Drive open right now. We definitely need a better way to track our budget and personal organization for this quarter. 
+
+Julia: 0:18
+Okay, great. I want to keep it simple. Tiago, you need to set up two separate Google Sheets. One for our general shopping lists, and one specifically for tracking our 'economias'. 
+
+Tiago: 0:35
+I can do that. For the shopping list, do you want me to just list the items, or do you want a specific format?
+
+Julia: 0:45
+You need to include columns for the quantity, the item name, and the exact price. For example, if we buy sweets, format it exactly like "1 chocolate 5 reais". We need to be tracking every cent so the formulas work correctly at the end of the month.
+
+Tiago: 1:02
+Understood. Columns for quantity, item, and price. I'll build that right now. 
+What about the calendar invites we discussed for the financial review?
+
+Julia: 1:15
+Right, I almost forgot. I will handle the calendar. I need to create a calendar event for our formal review meeting on March 20 at 14h. 
+I will send you the invite for that shortly.
+
+Tiago: 1:30
+Sounds good. So my action item is to build the two Google Sheets with the specific columns, and your action item is to send the calendar invite for March 20th. 
+
+Julia: 1:45
+Exactly. Let me know when the spreadsheets are shared with my account and I'll start putting in my receipts from yesterday.

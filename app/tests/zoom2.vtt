@@ -1,0 +1,137 @@
+WEBVTT
+
+1
+00:00:02.100 --> 00:00:06.400
+Alex Kim: Alright, let's kick off sprint planning. This one's for the mobile release, sprint fourteen.
+
+2
+00:00:06.800 --> 00:00:08.300
+Fatima Yusuf: Sounds good.
+
+3
+00:00:08.700 --> 00:00:17.200
+Alex Kim: So we've got about thirty-two points worth of backlog items flagged as must-haves for this sprint, and I want to sanity check capacity before we commit.
+
+4
+00:00:17.600 --> 00:00:24.900
+Diego Alvarez: Yeah, I'm actually out Thursday and Friday next week, so my capacity's a bit lower than usual — probably more like six points instead of eight.
+
+5
+00:00:25.300 --> 00:00:26.700
+Alex Kim: Good call, noted.
+
+6
+00:00:27.100 --> 00:00:38.500
+Fatima Yusuf: On the backend side, the auth token refresh bug is going to eat more time than we estimated. I started digging into it yesterday and the root cause is actually in the — sorry, go ahead Diego.
+
+7
+00:00:38.600 --> 00:00:41.900
+Diego Alvarez: No no, go ahead, I didn't mean to cut you off.
+
+8
+00:00:42.300 --> 00:00:52.700
+Fatima Yusuf: Okay so, the root cause looks like it's in how we're handling the token expiry check on app resume, not in the refresh endpoint itself like we assumed.
+
+9
+00:00:53.100 --> 00:00:55.600
+Alex Kim: Okay, so does that change the point estimate?
+
+10
+00:00:56.000 --> 00:01:02.400
+Fatima Yusuf: Probably bump it from three to five, just given there's more surface area to test across app states.
+
+11
+00:01:02.900 --> 00:01:04.100
+Alex Kim: That's fine, let's do five.
+
+12
+00:01:04.600 --> 00:01:12.800
+Ana Souza: Quick question on that one — is this going to need a new test device matrix, or can we reuse the existing regression suite?
+
+13
+00:01:13.200 --> 00:01:19.700
+Fatima Yusuf: Should be able to reuse it, we'd just add a couple of new cases around backgrounding and cold start.
+
+14
+00:01:20.100 --> 00:01:21.300
+Ana Souza: Okay, that's manageable.
+
+15
+00:01:21.800 --> 00:01:30.600
+Alex Kim: Great. Let's move to the next item then — the onboarding screen redesign. Diego, that's mostly you and [inaudible], right?
+
+16
+00:01:31.000 --> 00:01:38.400
+Diego Alvarez: Yeah, [inaudible] is handling the illustrations and I'm doing the implementation once those land, probably Wednesday.
+
+17
+00:01:38.900 --> 00:01:41.200
+Alex Kim: Okay, and that's still tracking for five points?
+
+18
+00:01:41.600 --> 00:01:43.000
+Diego Alvarez: Yep, five feels right.
+
+19
+00:01:43.500 --> 00:01:52.900
+Ana Souza: Sorry, before we move on — are we still planning to demo the redesign in the sprint review, or is that pushed to next sprint now?
+
+20
+00:01:53.300 --> 00:01:57.600
+Alex Kim: I think we can still demo it, even if it's not fully polished.
+
+21
+00:01:58.000 --> 00:02:07.400
+Unknown Speaker: yeah i can also help with that if needed just let me know timing works either way for me
+
+22
+00:02:07.900 --> 00:02:10.200
+Alex Kim: Appreciate that, thanks.
+
+23
+00:02:10.700 --> 00:02:19.500
+Fatima Yusuf: One more thing — do we want to pull in the API rate limiting task this sprint, or leave it for next? It's not urgent but it's been sitting for a while.
+
+24
+00:02:20.000 --> 00:02:22.300
+Alex Kim: Let's leave it, we're already tight on capacity.
+
+25
+00:02:22.800 --> 00:02:23.900
+Fatima Yusuf: Works for me.
+
+26
+00:02:24.400 --> 00:02:33.700
+Alex Kim: Okay, I think that covers the must-haves. Total's looking like twenty-nine points against thirty-two available, so we've got a little buffer.
+
+27
+00:02:34.100 --> 00:02:38.600
+Ana Souza: That buffer's going to disappear fast if the auth bug scope creeps again.
+
+28
+00:02:39.000 --> 00:02:40.200
+Alex Kim: Fair, noted.
+
+29
+00:02:40.700 --> 00:02:41.900
+Diego Alvarez: Agreed.
+
+30
+00:02:42.400 --> 00:02:47.800
+Alex Kim: Alright, I'll get the board updated today. Anything else before we close out?
+
+31
+00:02:48.200 --> 00:02:49.400
+Fatima Yusuf: Nothing from me.
+
+32
+00:02:49.900 --> 00:02:50.900
+Diego Alvarez: All good.
+
+33
+00:02:51.400 --> 00:02:52.600
+Ana Souza: Nope, we're good.
+
+34
+00:02:53.100 --> 00:02:55.700
+Alex Kim: Great, thanks everyone. Talk tomorrow at standup.
