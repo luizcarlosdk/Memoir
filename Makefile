@@ -32,7 +32,7 @@ test:
 
 test-verbose:
 	@echo "Running fast tests with output..."
-	$(PYTHON) -m pytest -m "not integration" -s
+	$(PYTHON) -m pytest -m "not integration" -v -s
 
 test-integration: check-key
 	@echo "Running LLM integration test..."
