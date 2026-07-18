@@ -1,4 +1,4 @@
-import os
+from dotenv import dotenv_values, find_dotenv
 
 from app.parsers import google_meet, zoom, llm
 from app.parsers.base import BaseTranscriptParser, TranscriptSegment
@@ -6,11 +6,13 @@ from app.parsers.base import BaseTranscriptParser, TranscriptSegment
 
 class TranscriptOrchestrator:
     def __init__(self):
+        env_config = dotenv_values(find_dotenv())
+
         self.parsers: list[BaseTranscriptParser] = [
             google_meet.GoogleMeetParser(),
             zoom.ZoomParser(),
             llm.LLMParser(
-                api_key=os.getenv("GOOGLE_API_KEY"),
+                api_key=env_config.get("GOOGLE_API_KEY"),
                 model_name="gemini-3.1-flash-lite",
             ),
         ]
