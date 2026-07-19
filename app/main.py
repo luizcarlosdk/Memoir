@@ -28,6 +28,7 @@ def summarize_meeting(payload: TranscriptUpload, db: Session = Depends(get_db)):
         title=payload.title,
         scheduled_start_at=payload.meeting_start,
         scheduled_end_at=payload.meeting_end,
+        workspace_id="1",  # TODO: Replace with actual workspace ID if available
     )
 
     db.add(new_meeting)
@@ -64,7 +65,9 @@ def summarize_meeting(payload: TranscriptUpload, db: Session = Depends(get_db)):
             if person:
                 db_assignee_id = person.id
             else:
-                new_assignee = Person(name=item.responsible_person)
+                new_assignee = Person(
+                    name=item.responsible_person, workspace_id="1"
+                )  # TODO: Replace with actual workspace ID if available
                 db.add(new_assignee)
                 db.flush()  # Ensure the new person gets an ID
                 db_assignee_id = new_assignee.id
