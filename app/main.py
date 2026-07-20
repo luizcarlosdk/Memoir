@@ -21,6 +21,7 @@ class TranscriptUpload(BaseModel):
     title: str = "Untitled Meeting"
     meeting_start: datetime | None = None
     meeting_end: datetime | None = None
+    workspace_id: str | None = "1"
 
 
 @app.post("/meetings/summarize")
@@ -34,7 +35,7 @@ def summarize_meeting(payload: TranscriptUpload, db: Session = Depends(get_db_se
             title=payload.title,
             scheduled_started_at=payload.meeting_start,
             scheduled_ended_at=payload.meeting_end,
-            workspace_id="1",  # TODO: Replace with actual workspace ID if available
+            workspace_id=payload.workspace_id,
         )
         db.add(new_meeting)
         db.flush()  # Ensure the new meeting gets an ID
