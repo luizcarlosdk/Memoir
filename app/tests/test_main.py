@@ -87,6 +87,13 @@ def mock_orchestrator(
     monkeypatch.setattr(main, "TranscriptOrchestrator", FakeOrchestrator)
 
 
+def test_frontend_page_is_served(client: TestClient) -> None:
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "Summarize a meeting" in response.text
+
+
 def test_summarize_meeting_persists_insights(
     client: TestClient,
     db_session_factory: sessionmaker[Session],
