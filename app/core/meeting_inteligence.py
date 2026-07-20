@@ -58,4 +58,4 @@ class SummarizationService:
     def summarize_meeting(self, raw_transcript: str) -> MeetingInsight:
         """Summarizes the meeting transcript and extracts insights."""
         result = self.agent.run_sync(raw_transcript)
-        return result.data
+        return result.output

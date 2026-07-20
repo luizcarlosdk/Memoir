@@ -59,4 +59,4 @@ class LLMParser(BaseTranscriptParser):
             {raw_transcript}"""
 
         result = self.agent.run_sync(prompt)
-        return result.data
+        return [TranscriptSegment(**segment.model_dump()) for segment in result.output]

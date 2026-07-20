@@ -1,8 +1,10 @@
 import logging
 from datetime import datetime
+from pathlib import Path
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -14,6 +16,7 @@ load_dotenv()
 
 app = FastAPI(title="Memoir API")
 logger = logging.getLogger(__name__)
+STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 
 class TranscriptUpload(BaseModel):
@@ -98,3 +101,6 @@ def summarize_meeting(payload: TranscriptUpload, db: Session = Depends(get_db_se
         "meeting_id": new_meeting.id,
         "message": "Meeting insights extracted and saved successfully",
     }
+
+
+app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="frontend")
