@@ -3,7 +3,6 @@ import uuid
 from sqlalchemy import (
     Column,
     DateTime,
-    DeclarativeBase,
     Engine,
     ForeignKey,
     String,
@@ -11,7 +10,7 @@ from sqlalchemy import (
     Text,
     func,
 )
-from sqlalchemy.orm import Mapped, declared_attr, mapped_column, relationship
+from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
@@ -202,7 +201,7 @@ class ActionItem(Base, UUIDMixin, BaseMixin):
         nullable=True,
     )
 
-    assignee: Mapped["Person" | None] = relationship(
+    assignee: Mapped["Person | None"] = relationship(
         "Person", back_populates="assigned_actions"
     )
 
