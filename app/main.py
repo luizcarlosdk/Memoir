@@ -5,7 +5,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.database.connection import get_db
+from app.database.connection import get_db_session
 from app.database.models import ActionItem, Meeting, Person, Transcript
 from app.orchestrator import TranscriptOrchestrator
 
@@ -15,74 +15,75 @@ app = FastAPI(title="Memoir API")
 
 
 class TranscriptUpload(BaseModel):
-    raw_transcrip: str
+    raw_transcript: str
     title: str = "Untitled Meeting"
     meeting_start: time | None = None
     meeting_end: time | None = None
 
 
 @app.post("/meetings/summarize")
-def summarize_meeting(payload: TranscriptUpload, db: Session = Depends(get_db)):
-
-    new_meeting = Meeting(
-        title=payload.title,
-        scheduled_start_at=payload.meeting_start,
-        scheduled_end_at=payload.meeting_end,
-        workspace_id="1",  # TODO: Replace with actual workspace ID if available
-    )
-
-    db.add(new_meeting)
-    db.flush()  # Ensure the new meeting gets an ID
+def summarize_meeting(payload: TranscriptUpload, db: Session = Depends(get_db_session)):
     try:
+        new_meeting = Meeting(
+            title=payload.title,
+            scheduled_started_at=payload.meeting_start,
+            scheduled_ended_at=payload.meeting_end,
+            workspace_id="1",  # TODO: Replace with actual workspace ID if available
+        )
+        db.add(new_meeting)
+        db.flush()  # Ensure the new meeting gets an ID
+
         orchestrator = TranscriptOrchestrator()
         segments = orchestrator.detect_and_parse(payload.raw_transcript)
-        meeting_insight = orchestrator.summarize_transcript(payload.raw_transcrip)
-    except Exception as e:
-        raise HTTPException(
-            status_code=500, detail=f"Error processing transcript: {str(e)}"
-        )
+        meeting_insight = orchestrator.summarize_transcript(payload.raw_transcript)
 
-    new_meeting.summary = meeting_insight.summary
-    new_meeting.decisions = meeting_insight.decisions
+        new_meeting.summary = meeting_insight.summary
+        new_meeting.decisions = meeting_insight.decisions
 
-    for segment in segments:
-        transcript_entry = Transcript(
-            meeting_id=new_meeting.id,
-            speaker=segment.speaker,
-            text=segment.text,
-            timestamp_start=segment.timestamp_start,
-            timestamp_end=segment.timestamp_end,
-            parent_meeting=new_meeting,
-        )
-        db.add(transcript_entry)
-
-    for item in meeting_insight.action_items:
-        db_assignee_id = None
-        if item.responsible_person:
-            person = (
-                db.query(Person).filter(Person.name == item.responsible_person).first()
+        for segment in segments:
+            transcript_entry = Transcript(
+                meeting_id=new_meeting.id,
+                speaker=segment.speaker,
+                text=segment.text,
+                timestamp_start=segment.timestamp_start,
+                timestamp_end=segment.timestamp_end,
+                parent_meeting=new_meeting,
             )
-            if person:
-                db_assignee_id = person.id
-            else:
-                new_assignee = Person(
-                    name=item.responsible_person, workspace_id="1"
-                )  # TODO: Replace with actual workspace ID if available
-                db.add(new_assignee)
-                db.flush()  # Ensure the new person gets an ID
-                db_assignee_id = new_assignee.id
+            db.add(transcript_entry)
 
-        action_item_entry = ActionItem(
-            meeting_id=new_meeting.id,
-            content=item.description,
-            assignee_id=db_assignee_id,
-            due_date=item.due_date,
-            parent_meeting=new_meeting,
-        )
-        db.add(action_item_entry)
+        for item in meeting_insight.action_items:
+            db_assignee_id = None
+            if item.responsible_person:
+                person = (
+                    db.query(Person)
+                    .filter(Person.name == item.responsible_person)
+                    .first()
+                )
+                if person:
+                    db_assignee_id = person.id
+                else:
+                    new_assignee = Person(
+                        name=item.responsible_person, workspace_id="1"
+                    )  # TODO: Replace with actual workspace ID if available
+                    db.add(new_assignee)
+                    db.flush()  # Ensure the new person gets an ID
+                    db_assignee_id = new_assignee.id
 
-    db.commit()
-    db.refresh(new_meeting)
+            action_item_entry = ActionItem(
+                meeting_id=new_meeting.id,
+                content=item.action_item,
+                assignee_id=db_assignee_id,
+                parent_meeting=new_meeting,
+            )
+            db.add(action_item_entry)
+
+        db.commit()
+        db.refresh(new_meeting)
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=500, detail=f"Error processing transcript: {exc}"
+        ) from exc
 
     return {
         "status": "success",
