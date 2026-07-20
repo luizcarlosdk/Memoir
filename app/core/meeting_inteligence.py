@@ -43,15 +43,15 @@ class SummarizationService:
             google_model,
             output_type=MeetingInsight,
             system_prompt=(
-                "You are an AI meeting assistant. Analyse the transcript and"
-                "extract a concise summary, key decisions, and action items."
+                "You are an AI meeting assistant. Analyse the transcript and "
+                "extract a concise summary, key decisions, and action items. "
                 "Rules for action items:\n"
                 "1. Clearly describe the task.\n"
                 "2. Identify the specific person responsible.\n"
                 "3. If no responsible person is mentioned,\n"
                 "   set the responsible_person to null.\n"
-                "4. Don't guess or invent names, \n",
-                "only use names mentioned in the transcript.\n",
+                "4. Don't guess or invent names; only use names mentioned "
+                "in the transcript.\n"
             ),
         )
 
