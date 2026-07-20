@@ -1,4 +1,5 @@
-from datetime import time
+import logging
+from datetime import datetime
 
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, HTTPException
@@ -12,18 +13,23 @@ from app.orchestrator import TranscriptOrchestrator
 load_dotenv()
 
 app = FastAPI(title="Memoir API")
+logger = logging.getLogger(__name__)
 
 
 class TranscriptUpload(BaseModel):
     raw_transcript: str
     title: str = "Untitled Meeting"
-    meeting_start: time | None = None
-    meeting_end: time | None = None
+    meeting_start: datetime | None = None
+    meeting_end: datetime | None = None
 
 
 @app.post("/meetings/summarize")
 def summarize_meeting(payload: TranscriptUpload, db: Session = Depends(get_db_session)):
     try:
+        orchestrator = TranscriptOrchestrator()
+        segments = orchestrator.detect_and_parse(payload.raw_transcript)
+        meeting_insight = orchestrator.summarize_transcript(payload.raw_transcript)
+
         new_meeting = Meeting(
             title=payload.title,
             scheduled_started_at=payload.meeting_start,
@@ -32,10 +38,6 @@ def summarize_meeting(payload: TranscriptUpload, db: Session = Depends(get_db_se
         )
         db.add(new_meeting)
         db.flush()  # Ensure the new meeting gets an ID
-
-        orchestrator = TranscriptOrchestrator()
-        segments = orchestrator.detect_and_parse(payload.raw_transcript)
-        meeting_insight = orchestrator.summarize_transcript(payload.raw_transcript)
 
         new_meeting.summary = meeting_insight.summary
         new_meeting.decisions = meeting_insight.decisions
@@ -56,15 +58,19 @@ def summarize_meeting(payload: TranscriptUpload, db: Session = Depends(get_db_se
             if item.responsible_person:
                 person = (
                     db.query(Person)
-                    .filter(Person.name == item.responsible_person)
+                    .filter(
+                        Person.name == item.responsible_person,
+                        Person.workspace_id == new_meeting.workspace_id,
+                    )
                     .first()
                 )
                 if person:
                     db_assignee_id = person.id
                 else:
                     new_assignee = Person(
-                        name=item.responsible_person, workspace_id="1"
-                    )  # TODO: Replace with actual workspace ID if available
+                        name=item.responsible_person,
+                        workspace_id=new_meeting.workspace_id,
+                    )
                     db.add(new_assignee)
                     db.flush()  # Ensure the new person gets an ID
                     db_assignee_id = new_assignee.id
@@ -81,12 +87,13 @@ def summarize_meeting(payload: TranscriptUpload, db: Session = Depends(get_db_se
         db.refresh(new_meeting)
     except Exception as exc:
         db.rollback()
+        logger.exception("Failed to summarize and save meeting")
         raise HTTPException(
-            status_code=500, detail=f"Error processing transcript: {exc}"
+            status_code=500, detail="Unable to summarize and save the meeting."
         ) from exc
 
     return {
         "status": "success",
         "meeting_id": new_meeting.id,
-        "message": "Meeting insights extracted and saved succesfuly",
+        "message": "Meeting insights extracted and saved successfully",
     }
