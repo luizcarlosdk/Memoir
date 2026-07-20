@@ -3,7 +3,6 @@ import uuid
 from sqlalchemy import (
     Column,
     DateTime,
-    DeclarativeBase,
     Engine,
     ForeignKey,
     String,
@@ -11,7 +10,7 @@ from sqlalchemy import (
     Text,
     func,
 )
-from sqlalchemy.orm import Mapped, declared_attr, mapped_column, relationship
+from sqlalchemy.orm import DeclarativeBase, Mapped, declared_attr, mapped_column, relationship
 
 
 class Base(DeclarativeBase):
@@ -87,6 +86,12 @@ class Meeting(Base, UUIDMixin, BaseMixin):
         nullable=True,
     )
 
+    workspace_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey("workspaces.id"),
+        nullable=False,
+    )
+
     # --- Ai generated Content
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     decisions: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -154,6 +159,11 @@ class Person(Base, UUIDMixin, BaseMixin):
     name: Mapped[str] = mapped_column(String)
     email: Mapped[str] = mapped_column(String, nullable=True)
     phone_number: Mapped[str] = mapped_column(String, nullable=True)
+    workspace_id: Mapped[str] = mapped_column(
+        String,
+        ForeignKey("workspaces.id"),
+        nullable=False,
+    )
 
     meetings: Mapped[list["Meeting"]] = relationship(
         "Meeting",
@@ -191,7 +201,7 @@ class ActionItem(Base, UUIDMixin, BaseMixin):
         nullable=True,
     )
 
-    assignee: Mapped["Person" | None] = relationship(
+    assignee: Mapped["Person | None"] = relationship(
         "Person", back_populates="assigned_actions"
     )
 
