@@ -10,7 +10,7 @@
 # Run integration test with output
 # make test-integration-verbose
 
-.PHONY: help install test test-verbose test-integration test-integration-verbose test-all clean check-env
+.PHONY: help install init-db run-frontend test test-verbose test-integration test-integration-verbose test-all clean check-env
 
 PYTHON := .venv/bin/python
 
@@ -18,6 +18,8 @@ help:
 	@echo "Memoir - Development Commands"
 	@echo ""
 	@echo "  make install                  - Install dependencies"
+	@echo "  make init-db                  - Create missing local database tables"
+	@echo "  make run-frontend             - Run the API and test frontend with reload"
 	@echo "  make test                     - Run fast tests (no API calls)"
 	@echo "  make test-verbose             - Run fast tests with output (-s flag)"
 	@echo "  make test-integration         - Run LLM integration test (requires .env)"
@@ -29,6 +31,12 @@ help:
 install:
 	$(PYTHON) -m pip install --upgrade pip
 	$(PYTHON) -m pip install -r requirements.txt
+
+init-db:
+	$(PYTHON) -c "from app.database.connection import init_db; init_db()"
+
+run-frontend: init-db
+	$(PYTHON) -m uvicorn app.main:app --reload
 
 check-env:
 	@if [ ! -f .env ]; then \

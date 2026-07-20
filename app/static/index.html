@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Memoir · Summarize a meeting</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+        color: #14213d;
+        background: #f4f7fb;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 2rem;
+      }
+
+      main {
+        width: min(100%, 760px);
+        background: #fff;
+        border: 1px solid #dde5f0;
+        border-radius: 16px;
+        box-shadow: 0 20px 50px rgb(28 45 76 / 12%);
+        overflow: hidden;
+      }
+
+      header {
+        padding: 2rem 2rem 1.5rem;
+        color: #fff;
+        background: linear-gradient(135deg, #1d4ed8, #0f766e);
+      }
+
+      h1, h2, p { margin-top: 0; }
+      h1 { margin-bottom: .5rem; font-size: clamp(1.7rem, 4vw, 2.25rem); }
+      header p { margin-bottom: 0; color: #dbeafe; }
+
+      form { padding: 2rem; }
+      .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+      .field { display: grid; gap: .45rem; margin-bottom: 1rem; }
+      .field.full { grid-column: 1 / -1; }
+      label { font-weight: 650; font-size: .92rem; }
+      .hint { font-size: .82rem; color: #53627b; }
+
+      input, textarea, button {
+        font: inherit;
+        border-radius: 8px;
+      }
+
+      input, textarea {
+        width: 100%;
+        padding: .7rem .8rem;
+        border: 1px solid #bbc7d9;
+        color: #14213d;
+        background: #fff;
+      }
+
+      textarea { min-height: 180px; resize: vertical; }
+      input:focus, textarea:focus { outline: 3px solid #bfdbfe; border-color: #2563eb; }
+
+      button {
+        border: 0;
+        padding: .8rem 1.1rem;
+        color: #fff;
+        background: #1d4ed8;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      button:hover { background: #1e40af; }
+      button:disabled { cursor: wait; opacity: .65; }
+
+      #result {
+        display: none;
+        margin: 0 2rem 2rem;
+        padding: 1rem;
+        border-radius: 8px;
+      }
+
+      #result.success { display: block; color: #065f46; background: #d1fae5; }
+      #result.error { display: block; color: #991b1b; background: #fee2e2; }
+      #result code { overflow-wrap: anywhere; }
+
+      @media (max-width: 560px) {
+        body { padding: 0; }
+        main { min-height: 100vh; border: 0; border-radius: 0; }
+        .grid { grid-template-columns: 1fr; }
+        header, form { padding: 1.5rem; }
+        #result { margin: 0 1.5rem 1.5rem; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>Summarize a meeting</h1>
+        <p>Upload a transcript or paste it below to create a meeting summary.</p>
+      </header>
+
+      <form id="summary-form">
+        <div class="grid">
+          <div class="field full">
+            <label for="title">Meeting title</label>
+            <input id="title" name="title" value="Untitled Meeting" required />
+          </div>
+
+          <div class="field">
+            <label for="meeting-start">Started at</label>
+            <input id="meeting-start" name="meeting-start" type="datetime-local" />
+          </div>
+
+          <div class="field">
+            <label for="meeting-end">Ended at</label>
+            <input id="meeting-end" name="meeting-end" type="datetime-local" />
+          </div>
+
+          <div class="field full">
+            <label for="workspace-id">Workspace ID</label>
+            <input id="workspace-id" name="workspace-id" value="1" />
+            <span class="hint">Temporary value until authentication supplies the workspace.</span>
+          </div>
+
+          <div class="field full">
+            <label for="transcript-file">Transcript file</label>
+            <input id="transcript-file" name="transcript-file" type="file" accept=".txt,.vtt,.srt,text/plain,text/vtt" />
+            <span class="hint">Selecting a file fills the transcript field below. The file is not uploaded separately.</span>
+          </div>
+
+          <div class="field full">
+            <label for="raw-transcript">Transcript</label>
+            <textarea id="raw-transcript" name="raw-transcript" placeholder="Paste the meeting transcript here…" required></textarea>
+          </div>
+        </div>
+
+        <button id="submit-button" type="submit">Generate summary</button>
+      </form>
+
+      <section id="result" role="status" aria-live="polite"></section>
+    </main>
+
+    <script>
+      const form = document.querySelector("#summary-form");
+      const fileInput = document.querySelector("#transcript-file");
+      const transcript = document.querySelector("#raw-transcript");
+      const submitButton = document.querySelector("#submit-button");
+      const result = document.querySelector("#result");
+
+      fileInput.addEventListener("change", async () => {
+        const [file] = fileInput.files;
+        if (!file) return;
+
+        try {
+          transcript.value = await file.text();
+          result.className = "";
+          result.textContent = "";
+        } catch {
+          result.className = "error";
+          result.textContent = "The selected file could not be read as text.";
+        }
+      });
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        result.className = "";
+        result.textContent = "";
+        submitButton.disabled = true;
+        submitButton.textContent = "Generating…";
+
+        const toIsoString = (value) => value ? new Date(value).toISOString() : null;
+        const payload = {
+          raw_transcript: transcript.value,
+          title: document.querySelector("#title").value,
+          meeting_start: toIsoString(document.querySelector("#meeting-start").value),
+          meeting_end: toIsoString(document.querySelector("#meeting-end").value),
+          workspace_id: document.querySelector("#workspace-id").value || null,
+        };
+
+        try {
+          const response = await fetch("/meetings/summarize", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const body = await response.json();
+
+          if (!response.ok) {
+            throw new Error(body.detail || "The summary request failed.");
+          }
+
+          result.className = "success";
+          result.innerHTML = `<strong>${body.message}</strong><br />Meeting ID: <code>${body.meeting_id}</code>`;
+        } catch (error) {
+          result.className = "error";
+          result.textContent = error.message || "The summary request failed.";
+        } finally {
+          submitButton.disabled = false;
+          submitButton.textContent = "Generate summary";
+        }
+      });
+    </script>
+  </body>
+</html>
