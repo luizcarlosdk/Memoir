@@ -4,7 +4,7 @@ AI-powered workspace that transforms meeting transcripts into searchable organiz
 ## Roadmap
 
 - [x] **Transcript parsing** — format detection, deterministic parsers (Zoom, Google Meet), LLM fallback for messy/unknown formats
-- [ ] **Storage & Meeting page** — persist transcripts, generate summaries/decisions/action items
+- [x] **Storage & Meeting page** — persist transcripts, generate summaries/decisions/action items
 - [ ] **Person page** — cross-meeting aggregation of participants and their contributions
 - [ ] **Ask AI** — Q&A over a single meeting's transcript
 - [ ] **Semantic search** — cross-meeting search and Q&A powered by pgvector
