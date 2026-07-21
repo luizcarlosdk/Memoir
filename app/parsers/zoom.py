@@ -10,6 +10,8 @@ ZOOM_SPEAKER_LINE_PATTERN = re.compile(r"^(?P<speaker>[^:]+):\s*(?P<text>.+)$")
 
 
 class ZoomParser(BaseTranscriptParser):
+    platform = "Zoom"
+
     def can_parse(self, raw_transcript: str) -> bool:
         has_header = raw_transcript.lstrip().startswith("WEBVTT")
         has_time_ranges = bool(ZOOM_TIME_RANGE_PATTERN.search(raw_transcript))

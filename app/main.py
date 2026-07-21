@@ -22,6 +22,7 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 class TranscriptUpload(BaseModel):
     raw_transcript: str
     title: str = "Untitled Meeting"
+    description: str | None = None
     meeting_start: datetime | None = None
     meeting_end: datetime | None = None
     workspace_id: str | None = "1"
@@ -36,6 +37,8 @@ def summarize_meeting(payload: TranscriptUpload, db: Session = Depends(get_db_se
 
         new_meeting = Meeting(
             title=payload.title,
+            description=payload.description,
+            platform=getattr(orchestrator, "last_detected_platform", None),
             scheduled_started_at=payload.meeting_start,
             scheduled_ended_at=payload.meeting_end,
             workspace_id=payload.workspace_id,
@@ -100,7 +103,42 @@ def summarize_meeting(payload: TranscriptUpload, db: Session = Depends(get_db_se
         "status": "success",
         "meeting_id": new_meeting.id,
         "message": "Meeting insights extracted and saved successfully",
+        "meeting": serialize_meeting(new_meeting),
     }
+
+
+def serialize_meeting(meeting: Meeting) -> dict:
+    """Return meeting data needed by the summary interface."""
+    return {
+        "id": meeting.id,
+        "title": meeting.title,
+        "description": meeting.description,
+        "platform": meeting.platform,
+        "scheduled_started_at": meeting.scheduled_started_at.isoformat()
+        if meeting.scheduled_started_at
+        else None,
+        "scheduled_ended_at": meeting.scheduled_ended_at.isoformat()
+        if meeting.scheduled_ended_at
+        else None,
+        "summary": meeting.summary,
+        "decisions": meeting.decisions,
+        "participants": [person.name for person in meeting.participants],
+        "action_items": [
+            {
+                "content": item.content,
+                "assignee": item.assignee.name if item.assignee else None,
+                "status": item.status,
+            }
+            for item in meeting.action_items
+        ],
+    }
+
+
+@app.get("/meetings")
+def list_recent_meetings(db: Session = Depends(get_db_session)):
+    """Return the most recently created meetings for the summary interface."""
+    meetings = db.query(Meeting).order_by(Meeting.created_at.desc()).limit(10).all()
+    return {"meetings": [serialize_meeting(meeting) for meeting in meetings]}
 
 
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="frontend")

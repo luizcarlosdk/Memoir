@@ -12,6 +12,8 @@ class TranscriptSegment:
 
 
 class BaseTranscriptParser(ABC):
+    platform: str | None = None
+
     @abstractmethod
     def can_parse(self, raw_transcript: str) -> bool:
         pass

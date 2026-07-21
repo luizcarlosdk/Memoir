@@ -16,6 +16,7 @@ class TranscriptOrchestrator:
             zoom.ZoomParser(),
         ]
         self.llm_parser: llm.LLMParser | None = None
+        self.last_detected_platform: str | None = None
 
     def detect_and_parse(self, raw_transcript: str) -> list[TranscriptSegment]:
         if not raw_transcript.strip():
@@ -23,6 +24,7 @@ class TranscriptOrchestrator:
 
         for parser in self.parsers:
             if parser.can_parse(raw_transcript):
+                self.last_detected_platform = parser.platform
                 return parser.parse(raw_transcript)
 
         if self.llm_parser is None:
