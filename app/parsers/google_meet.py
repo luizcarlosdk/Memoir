@@ -9,6 +9,8 @@ GOOGLE_MEET_LINE_PATTERN = re.compile(
 
 
 class GoogleMeetParser(BaseTranscriptParser):
+    platform = "Google Meet"
+
     def can_parse(self, raw_transcript: str) -> bool:
         return any(
             GOOGLE_MEET_LINE_PATTERN.fullmatch(line)

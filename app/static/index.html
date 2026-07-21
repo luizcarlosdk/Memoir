@@ -33,6 +33,7 @@
       button { width: 100%; margin-top: 1.5rem; border: 0; border-radius: 9px; padding: .9rem 1.1rem; color: #fff; background: #5d50cf; font-weight: 800; cursor: pointer; }
       button:hover { background: #4d41ba; }
       button:disabled { cursor: wait; opacity: .65; }
+      .right-column { display: grid; gap: 1.5rem; }
       .result-panel { min-height: 100%; overflow: hidden; }
       .empty { display: grid; min-height: 470px; place-items: center; padding: 2rem; color: #7a8498; text-align: center; }
       .empty-icon { display: grid; width: 56px; height: 56px; place-items: center; margin: 0 auto 1rem; border-radius: 16px; color: #6458d8; background: #eeecff; font-size: 1.6rem; }
@@ -51,6 +52,16 @@
       .assignee { color: #6458d8; font-weight: 700; }
       .error { margin: 1rem 1.5rem 1.5rem; padding: .85rem 1rem; border-radius: 9px; color: #9b1c30; background: #fff0f2; font-size: .9rem; }
       .hidden { display: none; }
+      .recent-panel { overflow: hidden; }
+      .recent-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; padding: 1.2rem 1.4rem; border-bottom: 1px solid #eceef4; }
+      .recent-heading h2 { margin: 0; font-size: 1rem; }
+      .recent-heading span { color: #788196; font-size: .78rem; }
+      .recent-list { margin: 0; padding: .45rem; list-style: none; }
+      .recent-list button { display: grid; grid-template-columns: minmax(0, 1fr) auto; width: 100%; margin: 0; padding: .75rem .9rem; color: #263047; background: transparent; text-align: left; font-weight: 600; }
+      .recent-list button:hover { color: #4d41ba; background: #f4f2ff; }
+      .recent-list small { display: block; margin-top: .2rem; color: #7a8497; font-weight: 500; }
+      .recent-list time { color: #747e91; font-size: .75rem; font-weight: 600; }
+      .recent-empty { padding: 1.25rem 1.4rem; color: #7a8497; font-size: .9rem; }
       @media (max-width: 800px) { .layout { grid-template-columns: 1fr; } .empty { min-height: 280px; } }
       @media (max-width: 520px) { main { width: min(100% - 1.25rem, 1180px); padding: 1.5rem 0; } .grid { grid-template-columns: 1fr; } .full { grid-column: auto; } .form-panel, .result-content { padding: 1.2rem; } }
     </style>
@@ -70,8 +81,6 @@
               <div class="field full"><label for="description">Description <span class="hint">(optional)</span></label><input id="description" name="description" placeholder="What is this meeting about?" /></div>
               <div class="field"><label for="meeting-start">Date and time</label><input id="meeting-start" name="meeting-start" type="datetime-local" /></div>
               <div class="field"><label for="duration">Duration (minutes)</label><input id="duration" name="duration" type="number" min="1" step="1" placeholder="30" /></div>
-              <div class="field"><label for="platform">Platform <span class="hint">(optional)</span></label><input id="platform" name="platform" placeholder="Google Meet" /></div>
-              <div class="field"><label for="workspace-id">Workspace ID</label><input id="workspace-id" name="workspace-id" value="1" required /></div>
               <div class="field full file-field"><label for="transcript-file">Transcript file</label><input id="transcript-file" name="transcript-file" type="file" accept=".txt,.vtt,.srt,text/plain,text/vtt" /><span class="hint">The file fills the transcript field; it is not uploaded separately.</span></div>
               <div class="field full"><label for="raw-transcript">Transcript</label><textarea id="raw-transcript" name="raw-transcript" placeholder="Paste the meeting transcript here…" required></textarea></div>
             </div>
@@ -79,11 +88,18 @@
           </form>
         </section>
 
-        <section class="panel result-panel" aria-live="polite" aria-labelledby="summary-title">
-          <div id="empty-state" class="empty"><div><div class="empty-icon">✦</div><strong>Your summary will appear here</strong><p>Meeting information and AI-generated insights stay on this page.</p></div></div>
-          <div id="result" class="result-content hidden"></div>
-          <div id="error" class="error hidden" role="alert"></div>
-        </section>
+        <div class="right-column">
+          <section class="panel result-panel" aria-live="polite" aria-labelledby="summary-title">
+            <div id="empty-state" class="empty"><div><div class="empty-icon">✦</div><strong>Your summary will appear here</strong><p>Meeting information and AI-generated insights stay on this page.</p></div></div>
+            <div id="result" class="result-content hidden"></div>
+            <div id="error" class="error hidden" role="alert"></div>
+          </section>
+          <aside class="panel recent-panel" aria-labelledby="recent-title">
+            <div class="recent-heading"><h2 id="recent-title">Recent meetings</h2><span>Last 10 saved</span></div>
+            <p id="recent-empty" class="recent-empty">No meetings have been saved yet.</p>
+            <ul id="recent-list" class="recent-list hidden"></ul>
+          </aside>
+        </div>
       </div>
     </main>
     <script>
@@ -94,6 +110,8 @@
       const result = document.querySelector("#result");
       const error = document.querySelector("#error");
       const emptyState = document.querySelector("#empty-state");
+      const recentList = document.querySelector("#recent-list");
+      const recentEmpty = document.querySelector("#recent-empty");
 
       fileInput.addEventListener("change", async () => {
         const [file] = fileInput.files;
@@ -110,7 +128,16 @@
         return element;
       };
       const formatDate = (value) => value ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : null;
-      const durationLabel = (minutes) => minutes ? `${minutes} min` : null;
+      const durationInMinutes = (meeting) => {
+        if (!meeting.scheduled_started_at || !meeting.scheduled_ended_at) return null;
+        return Math.round((new Date(meeting.scheduled_ended_at) - new Date(meeting.scheduled_started_at)) / 60_000);
+      };
+      const durationLabel = (minutes) => {
+        if (!minutes) return null;
+        const hours = Math.floor(minutes / 60);
+        const remainingMinutes = minutes % 60;
+        return hours ? `${hours}h${remainingMinutes ? ` ${remainingMinutes}m` : ""}` : `${minutes} min`;
+      };
 
       function renderMeeting(meeting) {
         result.replaceChildren();
@@ -120,7 +147,7 @@
         append(titleText, "p", meeting.description || "Meeting summary and outcomes");
         title.append(titleText); append(title, "span", "Saved", "badge"); result.append(title);
         const metadata = document.createElement("div"); metadata.className = "metadata";
-        [formatDate(meeting.scheduled_started_at), durationLabel(meeting.duration_minutes), meeting.platform].filter(Boolean).forEach(value => append(metadata, "span", value));
+        [formatDate(meeting.scheduled_started_at), durationLabel(durationInMinutes(meeting))].filter(Boolean).forEach(value => append(metadata, "span", value));
         result.append(metadata);
         const addSection = (heading, content) => { if (!content) return; const section = document.createElement("section"); section.className = "section"; append(section, "h3", heading); append(section, "p", content); result.append(section); };
         addSection("Summary", meeting.summary);
@@ -128,6 +155,24 @@
         if (meeting.action_items?.length) { const section = document.createElement("section"); section.className = "section"; append(section, "h3", "Action items"); const list = document.createElement("ul"); list.className = "action-list"; meeting.action_items.forEach(item => { const row = document.createElement("li"); append(row, "span", item.content); if (item.assignee) { row.append(" · "); append(row, "span", item.assignee, "assignee"); } list.append(row); }); section.append(list); result.append(section); }
         if (meeting.participants?.length) addSection("Participants", meeting.participants.join(", "));
         emptyState.classList.add("hidden"); result.classList.remove("hidden");
+      }
+
+      function renderRecentMeetings(meetings) {
+        recentList.replaceChildren();
+        if (!meetings.length) { recentList.classList.add("hidden"); recentEmpty.classList.remove("hidden"); return; }
+        recentEmpty.classList.add("hidden"); recentList.classList.remove("hidden");
+        meetings.forEach((meeting) => {
+          const item = document.createElement("li");
+          const button = document.createElement("button"); button.type = "button";
+          const details = document.createElement("span"); append(details, "span", meeting.title); append(details, "small", [formatDate(meeting.scheduled_started_at), durationLabel(durationInMinutes(meeting))].filter(Boolean).join(" · ") || "No date set");
+          button.append(details); append(button, "time", "View");
+          button.addEventListener("click", () => renderMeeting(meeting)); item.append(button); recentList.append(item);
+        });
+      }
+
+      async function loadRecentMeetings() {
+        try { const response = await fetch("/meetings"); if (!response.ok) throw new Error(); const body = await response.json(); renderRecentMeetings(body.meetings); }
+        catch { recentEmpty.textContent = "Recent meetings could not be loaded."; }
       }
 
       form.addEventListener("submit", async (event) => {
@@ -139,19 +184,19 @@
           raw_transcript: transcript.value,
           title: document.querySelector("#title").value,
           description: document.querySelector("#description").value || null,
-          platform: document.querySelector("#platform").value || null,
           meeting_start: startDate?.toISOString() || null,
           meeting_end: startDate && duration ? new Date(startDate.getTime() + duration * 60_000).toISOString() : null,
-          workspace_id: document.querySelector("#workspace-id").value,
         };
         try {
           const response = await fetch("/meetings/summarize", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
           const body = await response.json();
           if (!response.ok) throw new Error(body.detail || "The summary request failed.");
-          renderMeeting({ ...body.meeting, duration_minutes: duration });
+          renderMeeting(body.meeting);
+          loadRecentMeetings();
         } catch (exception) { error.textContent = exception.message || "The summary request failed."; error.classList.remove("hidden"); }
         finally { submitButton.disabled = false; submitButton.textContent = "Generate summary"; }
       });
+      loadRecentMeetings();
     </script>
   </body>
 </html>
