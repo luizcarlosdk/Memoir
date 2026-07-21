@@ -17,6 +17,7 @@ AI-powered workspace that transforms meeting transcripts into searchable organiz
 Use `make` for common tasks:
 
 ```bash
+make run-frontend            # Initialize the database and start the app with reload
 make test                     # Run fast tests (quiet)
 make test-verbose             # Run fast tests with output (-s flag)
 make test-integration         # Run LLM integration test (requires GOOGLE_API_KEY)
@@ -28,6 +29,9 @@ make help                     # Show all commands
 ### Examples
 
 ```bash
+# Start the frontend at http://127.0.0.1:8000/
+make run-frontend
+
 # Run tests silently
 make test
 
