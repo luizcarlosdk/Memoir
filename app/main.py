@@ -22,6 +22,8 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 class TranscriptUpload(BaseModel):
     raw_transcript: str
     title: str = "Untitled Meeting"
+    description: str | None = None
+    platform: str | None = None
     meeting_start: datetime | None = None
     meeting_end: datetime | None = None
     workspace_id: str | None = "1"
@@ -36,6 +38,8 @@ def summarize_meeting(payload: TranscriptUpload, db: Session = Depends(get_db_se
 
         new_meeting = Meeting(
             title=payload.title,
+            description=payload.description,
+            platform=payload.platform,
             scheduled_started_at=payload.meeting_start,
             scheduled_ended_at=payload.meeting_end,
             workspace_id=payload.workspace_id,
@@ -100,6 +104,29 @@ def summarize_meeting(payload: TranscriptUpload, db: Session = Depends(get_db_se
         "status": "success",
         "meeting_id": new_meeting.id,
         "message": "Meeting insights extracted and saved successfully",
+        "meeting": {
+            "id": new_meeting.id,
+            "title": new_meeting.title,
+            "description": new_meeting.description,
+            "platform": new_meeting.platform,
+            "scheduled_started_at": new_meeting.scheduled_started_at.isoformat()
+            if new_meeting.scheduled_started_at
+            else None,
+            "scheduled_ended_at": new_meeting.scheduled_ended_at.isoformat()
+            if new_meeting.scheduled_ended_at
+            else None,
+            "summary": new_meeting.summary,
+            "decisions": new_meeting.decisions,
+            "participants": [person.name for person in new_meeting.participants],
+            "action_items": [
+                {
+                    "content": item.content,
+                    "assignee": item.assignee.name if item.assignee else None,
+                    "status": item.status,
+                }
+                for item in new_meeting.action_items
+            ],
+        },
     }
 
 

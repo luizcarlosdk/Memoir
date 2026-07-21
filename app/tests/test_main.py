@@ -91,7 +91,8 @@ def test_frontend_page_is_served(client: TestClient) -> None:
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "Summarize a meeting" in response.text
+    assert "New meeting" in response.text
+    assert 'id="duration"' in response.text
 
 
 def test_summarize_meeting_persists_insights(
