@@ -1,0 +1,46 @@
+Transcript
+
+Diego Andrade: 0:00
+Let's keep this focused. Please share what changed, what is blocked, and what needs a decision.
+
+Alex Kim: 0:09
+The Zoom transcript parser is working against the three sample formats we have. I also added validation for missing speaker names and malformed timestamps.
+
+Fatima Yusuf: 0:25
+Did you decide what happens when the parser confidence is low?
+
+Alex Kim: 0:31
+For now, the orchestrator falls back to the LLM parser. I still need to add a visible warning when the result contains inferred timestamps.
+
+Diego Andrade: 0:44
+Please add that warning before we merge. Users should know when information was inferred instead of extracted directly.
+
+Marcos Lee: 0:55
+I finished the database migration for action item assignees. The remaining issue is that older meetings have assignee names stored only as text.
+
+Diego Andrade: 1:09
+Can we backfill those records by matching names within the same workspace?
+
+Marcos Lee: 1:17
+Yes, but I want to avoid incorrect matches when two people have similar names. I suggest an automatic match only for exact normalized names and a manual review list for everything else.
+
+Fatima Yusuf: 1:34
+That sounds safer. Please include the unmatched count in the migration report.
+
+Ana Souza: 1:43
+On the frontend, the meetings dashboard is complete. I am now working on the person cards and the search field.
+
+Diego Andrade: 1:55
+For the first version, search by name and email is enough. Phone number search can wait.
+
+Ana Souza: 2:04
+Understood. I can have the persons page ready for review by Friday.
+
+Alex Kim: 2:15
+My action item is to add the inferred-data warning and parser tests by tomorrow.
+
+Marcos Lee: 2:25
+I will implement the exact-name backfill and generate the manual review report by Thursday.
+
+Diego Andrade: 2:38
+Good. The decisions are: keep the LLM fallback, clearly label inferred data, and use conservative matching for historical assignees.

@@ -1,0 +1,40 @@
+Transcript
+
+Alex Kim: 0:00
+Thanks for joining. The goal today is to lock the Q3 roadmap and make sure engineering, product, and design agree on what is actually achievable.
+
+Fatima Yusuf: 0:12
+From the product side, the three priorities are the mobile release, the analytics dashboard, and the performance initiative. The problem is that all three are currently scoped as full projects.
+
+Diego Andrade: 0:28
+Engineering cannot deliver all three at the current scope. The authentication refresh work already consumed more capacity than expected, and we still have two reliability issues open.
+
+Ana Souza: 0:45
+Could we move the mobile release by two weeks and keep the analytics dashboard as the main Q3 deliverable? That would give design enough time to finish the onboarding flow properly.
+
+Alex Kim: 1:02
+That seems reasonable. Fatima, would moving the mobile release to August 28 create a customer commitment problem?
+
+Fatima Yusuf: 1:12
+No, as long as we communicate the new date this week. I would rather move it once than release something unstable.
+
+Diego Andrade: 1:27
+Then I suggest we reduce the performance initiative to API latency only. Database optimization and background jobs can move to Q4.
+
+Ana Souza: 1:42
+Agreed. I can finalize the onboarding screens by next Wednesday if the requirements stop changing today.
+
+Alex Kim: 1:55
+Let's make that the decision. Mobile release moves to August 28. Analytics dashboard becomes the Q3 MVP priority. Performance work is limited to API latency.
+
+Fatima Yusuf: 2:12
+I will update the public roadmap and prepare a customer communication draft by Friday.
+
+Diego Andrade: 2:24
+I will write the reduced performance scope and define success metrics by tomorrow afternoon.
+
+Ana Souza: 2:36
+I will deliver the final onboarding screens by Wednesday and schedule a review with engineering.
+
+Alex Kim: 2:48
+Great. I will prepare the revised release plan and check the impact on team capacity. Let's review progress again in two weeks.
