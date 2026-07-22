@@ -41,22 +41,3 @@ make test-integration-verbose # Run integration test with output
 make test-all                 # Run all tests
 make help                     # Show all commands
 ```
-
-### Examples
-
-```bash
-# Start the frontend at http://127.0.0.1:8000/
-make run
-
-# Run tests silently
-make test
-
-# Run tests and see print output
-make test-verbose
-
-# Run integration test with your API key
-GOOGLE_API_KEY="your_api_key" make test-integration
-
-# Run integration test with output
-GOOGLE_API_KEY="your_api_key" make test-integration-verbose
-```
