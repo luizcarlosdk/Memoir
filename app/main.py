@@ -1,144 +1,15 @@
-import logging
-from datetime import datetime
 from pathlib import Path
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
-from app.database.connection import get_db_session
-from app.database.models import ActionItem, Meeting, Person, Transcript
-from app.orchestrator import TranscriptOrchestrator
+from app.routes import router
 
 load_dotenv()
 
-app = FastAPI(title="Memoir API")
-logger = logging.getLogger(__name__)
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
-
-class TranscriptUpload(BaseModel):
-    raw_transcript: str
-    title: str = "Untitled Meeting"
-    description: str | None = None
-    meeting_start: datetime | None = None
-    meeting_end: datetime | None = None
-    workspace_id: str | None = "1"
-
-
-@app.post("/meetings/summarize")
-def summarize_meeting(payload: TranscriptUpload, db: Session = Depends(get_db_session)):
-    try:
-        orchestrator = TranscriptOrchestrator()
-        segments = orchestrator.detect_and_parse(payload.raw_transcript)
-        meeting_insight = orchestrator.summarize_transcript(payload.raw_transcript)
-
-        new_meeting = Meeting(
-            title=payload.title,
-            description=payload.description,
-            platform=getattr(orchestrator, "last_detected_platform", None),
-            scheduled_started_at=payload.meeting_start,
-            scheduled_ended_at=payload.meeting_end,
-            workspace_id=payload.workspace_id,
-        )
-        db.add(new_meeting)
-        db.flush()  # Ensure the new meeting gets an ID
-
-        new_meeting.summary = meeting_insight.summary
-        new_meeting.decisions = meeting_insight.decisions
-
-        for segment in segments:
-            transcript_entry = Transcript(
-                meeting_id=new_meeting.id,
-                speaker=segment.speaker,
-                text=segment.text,
-                timestamp_start=segment.timestamp_start,
-                timestamp_end=segment.timestamp_end,
-                parent_meeting=new_meeting,
-            )
-            db.add(transcript_entry)
-
-        for item in meeting_insight.action_items:
-            db_assignee_id = None
-            if item.responsible_person:
-                person = (
-                    db.query(Person)
-                    .filter(
-                        Person.name == item.responsible_person,
-                        Person.workspace_id == new_meeting.workspace_id,
-                    )
-                    .first()
-                )
-                if person:
-                    db_assignee_id = person.id
-                else:
-                    new_assignee = Person(
-                        name=item.responsible_person,
-                        workspace_id=new_meeting.workspace_id,
-                    )
-                    db.add(new_assignee)
-                    db.flush()  # Ensure the new person gets an ID
-                    db_assignee_id = new_assignee.id
-
-            action_item_entry = ActionItem(
-                meeting_id=new_meeting.id,
-                content=item.action_item,
-                assignee_id=db_assignee_id,
-                parent_meeting=new_meeting,
-            )
-            db.add(action_item_entry)
-
-        db.commit()
-        db.refresh(new_meeting)
-    except Exception as exc:
-        db.rollback()
-        logger.exception("Failed to summarize and save meeting")
-        raise HTTPException(
-            status_code=500, detail="Unable to summarize and save the meeting."
-        ) from exc
-
-    return {
-        "status": "success",
-        "meeting_id": new_meeting.id,
-        "message": "Meeting insights extracted and saved successfully",
-        "meeting": serialize_meeting(new_meeting),
-    }
-
-
-def serialize_meeting(meeting: Meeting) -> dict:
-    """Return meeting data needed by the summary interface."""
-    return {
-        "id": meeting.id,
-        "title": meeting.title,
-        "description": meeting.description,
-        "platform": meeting.platform,
-        "scheduled_started_at": meeting.scheduled_started_at.isoformat()
-        if meeting.scheduled_started_at
-        else None,
-        "scheduled_ended_at": meeting.scheduled_ended_at.isoformat()
-        if meeting.scheduled_ended_at
-        else None,
-        "summary": meeting.summary,
-        "decisions": meeting.decisions,
-        "participants": [person.name for person in meeting.participants],
-        "action_items": [
-            {
-                "content": item.content,
-                "assignee": item.assignee.name if item.assignee else None,
-                "status": item.status,
-            }
-            for item in meeting.action_items
-        ],
-    }
-
-
-@app.get("/meetings")
-def list_recent_meetings(db: Session = Depends(get_db_session)):
-    """Return the most recently created meetings for the summary interface."""
-    meetings = db.query(Meeting).order_by(Meeting.created_at.desc()).limit(10).all()
-    return {"meetings": [serialize_meeting(meeting) for meeting in meetings]}
-
-
+app = FastAPI(title="Memoir API")
+app.include_router(router)
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="frontend")

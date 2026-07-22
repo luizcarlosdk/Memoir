@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.main as main
+import app.routes as routes
 from app.core.meeting_inteligence import ExtractedActionItem, MeetingInsight
 from app.database.connection import get_db_session
 from app.database.models import ActionItem, Base, Meeting, Person, User, Workspace
@@ -84,15 +85,27 @@ def mock_orchestrator(
         def summarize_transcript(self, raw_transcript: str) -> MeetingInsight:
             return insight
 
-    monkeypatch.setattr(main, "TranscriptOrchestrator", FakeOrchestrator)
+    monkeypatch.setattr(routes, "TranscriptOrchestrator", FakeOrchestrator)
 
 
 def test_frontend_page_is_served(client: TestClient) -> None:
     response = client.get("/")
 
     assert response.status_code == 200
-    assert "New meeting" in response.text
+    assert "Meetings" in response.text
+    assert "Upload transcript" in response.text
     assert 'id="duration"' in response.text
+    assert response.text.count('class="nav-item') == 1
+    assert '<span data-icon="calendar"></span><span>Meetings</span>' in response.text
+
+
+def test_workspaces_are_available_for_switching(client: TestClient) -> None:
+    response = client.get("/workspaces")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "workspaces": [{"id": TEST_WORKSPACE_ID, "name": "Test workspace"}]
+    }
 
 
 def test_summarize_meeting_persists_insights(
@@ -126,6 +139,16 @@ def test_summarize_meeting_persists_insights(
 
     assert response.status_code == 200
     meeting_id = response.json()["meeting_id"]
+    serialized_meeting = response.json()["meeting"]
+    assert serialized_meeting["workspace_id"] == TEST_WORKSPACE_ID
+    assert serialized_meeting["transcript"] == [
+        {
+            "speaker": "Ana",
+            "text": "We will ship next week.",
+            "timestamp_start": "00:00:01",
+            "timestamp_end": None,
+        }
+    ]
 
     session = db_session_factory()
     try:
@@ -199,6 +222,36 @@ def test_summarize_meeting_matches_assignees_within_workspace(
         session.close()
 
 
+def test_list_meetings_filters_by_workspace(
+    client: TestClient,
+    db_session_factory: sessionmaker[Session],
+) -> None:
+    session = db_session_factory()
+    try:
+        user = User(email="second-owner@example.com", hashed_password="unused")
+        session.add(user)
+        session.flush()
+        second_workspace = Workspace(name="Second workspace", user_id=user.id)
+        session.add(second_workspace)
+        session.flush()
+        session.add_all(
+            [
+                Meeting(title="Visible meeting", workspace_id=TEST_WORKSPACE_ID),
+                Meeting(title="Hidden meeting", workspace_id=second_workspace.id),
+            ]
+        )
+        session.commit()
+    finally:
+        session.close()
+
+    response = client.get(f"/meetings?workspace_id={TEST_WORKSPACE_ID}")
+
+    assert response.status_code == 200
+    assert [meeting["title"] for meeting in response.json()["meetings"]] == [
+        "Visible meeting"
+    ]
+
+
 def test_summarize_meeting_rolls_back_when_persistence_fails(
     client: TestClient,
     db_session_factory: sessionmaker[Session],
@@ -216,7 +269,7 @@ def test_summarize_meeting_rolls_back_when_persistence_fails(
     def failing_action_item(**kwargs: object) -> None:
         raise RuntimeError("database write failed")
 
-    monkeypatch.setattr(main, "ActionItem", failing_action_item)
+    monkeypatch.setattr(routes, "ActionItem", failing_action_item)
 
     response = client.post(
         "/meetings/summarize",
