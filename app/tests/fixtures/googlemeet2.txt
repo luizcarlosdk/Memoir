@@ -1,7 +1,5 @@
 Transcript
 
-This editable transcript was computer generated and might contain errors. People can also change the text after it was created.
-
 Julia: 0:00
 Hey Tiago, are we ready to set up the new tracking system for the shared expenses? 
 

@@ -1,7 +1,5 @@
 Transcript
 
-This editable transcript was computer generated and might contain errors. People can also change the text after it was created.
-
 Carlos Silva: 0:00
 Alright, let's get started. Thanks for jumping on the call everyone.
 We need to review the progress on the data reconciliation project today, especially since we have a hard deadline coming up at the end of the week. Ana, I know you were looking into the system logs yesterday.
