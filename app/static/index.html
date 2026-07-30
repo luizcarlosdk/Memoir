@@ -100,10 +100,12 @@
           </header>
 
           <section class="people-directory" aria-labelledby="people-directory-title">
-            <header class="all-meetings-heading people-directory-heading">
-              <h2 id="people-directory-title"><span data-icon="people"></span>Workspace people</h2>
+            <h2 id="people-directory-title" class="visually-hidden">Workspace people</h2>
+            <div class="people-directory-tools" aria-label="Person filters">
               <label class="search-box people-search"><span data-icon="search"></span><input id="person-search" type="search" placeholder="Search people…" autocomplete="off" /></label>
-            </header>
+              <button id="person-open-actions-filter" class="person-filter-button" type="button" aria-pressed="false"><span data-icon="list"></span>Has open actions</button>
+              <select id="person-sort" aria-label="Sort persons"><option value="recent">Recently active</option><option value="name">Name</option><option value="contributions">Most contributions</option></select>
+            </div>
 
             <div id="people-loading" class="people-grid" aria-label="Loading people">
               <div class="person-card skeleton-card"></div><div class="person-card skeleton-card"></div><div class="person-card skeleton-card"></div>

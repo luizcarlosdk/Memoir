@@ -108,12 +108,15 @@ def test_frontend_page_is_served(client: TestClient) -> None:
     assert '<span data-icon="calendar"></span><span>Meetings</span>' in response.text
     assert '<span data-icon="people"></span><span>Persons</span>' in response.text
     assert 'id="people-list"' in response.text
+    assert 'id="person-open-actions-filter"' in response.text
+    assert 'id="person-sort"' in response.text
 
     script = client.get("/app.js")
     assert script.status_code == 200
     assert "/persons/${encodeURIComponent(personId)}/meetings" in script.text
     assert "/persons/${encodeURIComponent(personId)}/contributions" in script.text
     assert "/persons/${encodeURIComponent(personId)}/action-items" in script.text
+    assert 'create("ul", "person-todo-list")' in script.text
     assert "loadMeetings(body.meeting_id),\n      loadPersons()," in script.text
 
 

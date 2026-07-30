@@ -30,6 +30,7 @@ const state = {
   personDetailTab: "overview",
   personContributionQuery: "",
   personActionStatus: "",
+  personOpenActionsOnly: false,
   activeTab: "overview",
   meetingPage: 1,
   meetingsPerPage: 5,
@@ -73,6 +74,8 @@ const elements = {
   peopleEmpty: document.querySelector("#empty-people"),
   peopleNoResults: document.querySelector("#no-person-results"),
   personSearch: document.querySelector("#person-search"),
+  personOpenActionsFilter: document.querySelector("#person-open-actions-filter"),
+  personSort: document.querySelector("#person-sort"),
 };
 
 function setIcon(element, name) {
@@ -330,8 +333,18 @@ async function loadPersons() {
 
 function filteredPersons() {
   const query = elements.personSearch.value.trim().toLocaleLowerCase();
-  if (!query) return state.persons;
-  return state.persons.filter((person) => [person.name, person.email].filter(Boolean).join(" ").toLocaleLowerCase().includes(query));
+  const persons = state.persons.filter((person) => {
+    const matchesQuery = !query || [person.name, person.email].filter(Boolean).join(" ").toLocaleLowerCase().includes(query);
+    const matchesActions = !state.personOpenActionsOnly || person.open_action_item_count > 0;
+    return matchesQuery && matchesActions;
+  });
+  return persons.sort((left, right) => {
+    if (elements.personSort.value === "name") return left.name.localeCompare(right.name);
+    if (elements.personSort.value === "contributions") return right.contribution_count - left.contribution_count || left.name.localeCompare(right.name);
+    const leftTime = left.last_participated_at ? new Date(left.last_participated_at).getTime() : 0;
+    const rightTime = right.last_participated_at ? new Date(right.last_participated_at).getTime() : 0;
+    return rightTime - leftTime || left.name.localeCompare(right.name);
+  });
 }
 
 function renderPersonDirectory() {
@@ -351,15 +364,18 @@ function renderPersonDirectory() {
     avatar.style.setProperty("--avatar-color", avatarColor(person.name));
     const copy = create("div", "person-card-copy");
     copy.append(create("strong", "", person.name), create("span", "", person.email || "No email recorded"));
-    header.append(avatar, copy);
+    header.append(avatar, copy, icon("chevron", "person-card-arrow"));
     const stats = create("div", "person-card-stats");
     [
-      [person.meeting_count, "meetings"],
-      [person.contribution_count, "contributions"],
-      [person.open_action_item_count, "open actions"],
-    ].forEach(([value, label]) => {
-      const stat = create("div", "person-card-stat");
-      stat.append(create("strong", "", String(value)), create("span", "", label));
+      ["calendar", person.meeting_count, person.meeting_count === 1 ? "meeting" : "meetings", ""],
+      ["file", person.contribution_count, "contributions", ""],
+      ["check-square", person.open_action_item_count, person.open_action_item_count === 1 ? "open action" : "open actions", person.open_action_item_count ? "has-actions" : ""],
+    ].forEach(([iconName, value, label, className]) => {
+      const stat = create("div", `person-card-stat ${className}`);
+      stat.append(icon(iconName));
+      const statCopy = create("div");
+      statCopy.append(create("strong", "", String(value)), create("span", "", label));
+      stat.append(statCopy);
       stats.append(stat);
     });
     const lastSeen = person.last_participated_at ? `Last participated ${formatDate(person.last_participated_at, false)}` : "No meeting participation yet";
@@ -681,6 +697,7 @@ function showMeetingList() {
 
 function renderDetail(meeting) {
   elements.detail.replaceChildren();
+  elements.detail.classList.remove("person-page");
   if (!meeting) {
     elements.detail.classList.add("hidden");
     elements.shell.classList.remove("detail-view");
@@ -763,7 +780,13 @@ async function selectPerson(personId, returnContext = null) {
       request(`/persons/${encodeURIComponent(personId)}/action-items?${page}`),
     ]);
     if (state.selectedPersonId !== personId) return;
-    state.personDetail = { insight, meetings, contributions, actionItems };
+    state.personDetail = {
+      insight,
+      meetings,
+      contributions,
+      actionItems,
+      overviewActionItems: actionItems.items,
+    };
     renderPersonDetail();
   } catch (error) {
     showToast(error.message);
@@ -813,6 +836,11 @@ async function returnFromPersonDetail() {
   }, "back");
 }
 
+async function openMeetingFromPerson(meetingId) {
+  await showSection("meetings");
+  await loadMeetings(meetingId);
+}
+
 function personMeetingCard(meeting) {
   const card = create("article", "person-meeting-card");
   card.tabIndex = 0;
@@ -826,10 +854,7 @@ function personMeetingCard(meeting) {
   if (previews.children.length) card.append(previews);
   const meta = create("div", "contribution-meta", `${meeting.contribution_count} ${meeting.contribution_count === 1 ? "contribution" : "contributions"}`);
   card.append(meta);
-  const open = async () => {
-    await showSection("meetings");
-    await loadMeetings(meeting.id);
-  };
+  const open = () => openMeetingFromPerson(meeting.id);
   card.addEventListener("click", open);
   card.addEventListener("keydown", (event) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -872,17 +897,23 @@ function actionStatusClass(status) {
 
 function renderPersonActions(actionItems) {
   if (!actionItems.length) return create("p", "tab-empty", "No matching action items are assigned to this person.");
-  const list = create("div", "person-activity-list");
+  const list = create("ul", "person-todo-list");
   actionItems.forEach((item) => {
-    const card = create("article", "person-action-card");
-    const copy = create("div");
-    copy.append(create("p", "", item.content));
+    const status = String(item.status).toUpperCase();
+    const completed = status === "FINISHED";
+    const cancelled = status === "CANCELLED";
+    const row = create("li", `person-todo-item${completed ? " completed" : ""}${cancelled ? " cancelled" : ""}`);
+    const checkbox = create("span", "todo-checkbox");
+    if (completed) checkbox.append(icon("check"));
+    if (cancelled) checkbox.append(icon("close"));
+    const copy = create("div", "todo-copy");
+    copy.append(create("p", "todo-title", item.content));
     const meta = create("div", "person-action-meta");
     meta.append(create("strong", "", item.meeting.title));
     if (item.due_date) meta.append(create("span", "", `Due ${formatDate(item.due_date, false)}`));
     copy.append(meta);
-    card.append(copy, create("span", `action-status ${actionStatusClass(item.status)}`, item.status.replaceAll("_", " ")));
-    list.append(card);
+    row.append(checkbox, copy, create("span", `action-status ${actionStatusClass(item.status)}`, item.status.replaceAll("_", " ")));
+    list.append(row);
   });
   return list;
 }
@@ -896,32 +927,63 @@ function personSection(title, body, action = null) {
   return section;
 }
 
-function renderPersonOverview() {
-  const { insight, meetings, actionItems } = state.personDetail;
-  const wrapper = create("div", "person-overview");
-  const stats = create("div", "person-stat-grid");
+function renderFeaturedMeeting(meeting) {
+  if (!meeting) return create("p", "person-panel-empty", "No meeting activity is linked to this person yet.");
+  const card = create("article", "featured-person-meeting");
+  const top = create("div", "featured-meeting-top");
+  const meetingIcon = icon("calendar", "featured-meeting-icon");
+  const copy = create("div", "featured-meeting-copy");
+  copy.append(create("strong", "", meeting.title || "Untitled meeting"));
+  if (meeting.summary) copy.append(create("p", "", meeting.summary));
+  top.append(meetingIcon, copy, create("time", "", formatDate(meeting.scheduled_started_at, false) || "No date"));
+  const footer = create("footer", "featured-meeting-footer");
+  const contributionCount = create("span");
+  contributionCount.append(icon("file"), document.createTextNode(`${meeting.contribution_count} ${meeting.contribution_count === 1 ? "contribution" : "contributions"}`));
+  const open = create("button", "person-inline-link", "View meeting");
+  open.type = "button";
+  open.append(icon("chevron"));
+  open.addEventListener("click", () => openMeetingFromPerson(meeting.id));
+  footer.append(contributionCount, open);
+  card.append(top, footer);
+  return card;
+}
+
+function renderAtGlance(stats) {
+  const list = create("div", "glance-list");
   [
-    [insight.stats.meeting_count, "Meetings attended"],
-    [insight.stats.contribution_count, "Contributions"],
-    [insight.stats.open_action_item_count, "Open actions"],
-    [insight.stats.finished_action_item_count, "Finished actions"],
-  ].forEach(([value, label]) => {
-    const card = create("div", "person-stat-card");
-    card.append(create("strong", "", String(value)), create("span", "", label));
-    stats.append(card);
+    ["calendar", stats.meeting_count, stats.meeting_count === 1 ? "Meeting" : "Meetings"],
+    ["file", stats.contribution_count, "Contributions"],
+    ["check-square", stats.finished_action_item_count, "Finished actions"],
+  ].forEach(([iconName, value, label]) => {
+    const row = create("div", "glance-row");
+    row.append(icon(iconName, "glance-icon"));
+    const copy = create("div");
+    copy.append(create("strong", "", String(value)), create("span", "", label));
+    row.append(copy);
+    list.append(row);
   });
-  wrapper.append(stats);
+  return personSection("At a glance", list);
+}
 
-  const meetingsButton = create("button", "inline-button", "View all");
-  meetingsButton.type = "button";
-  meetingsButton.addEventListener("click", () => { state.personDetailTab = "meetings"; renderPersonActiveTab(); });
-  wrapper.append(personSection("Recent meetings", renderPersonMeetings(meetings.items.slice(0, 5)), meetingsButton));
+function renderOpenActionsPanel(actionItems) {
+  const openItems = actionItems.filter((item) => !["FINISHED", "CANCELLED"].includes(item.status));
+  if (openItems.length) return personSection("Open actions", renderPersonActions(openItems.slice(0, 3)));
+  const empty = create("div", "person-empty-state");
+  empty.append(icon("check", "person-empty-icon"), create("strong", "", "No open actions"), create("span", "", "Great job—nothing pending right now."));
+  return personSection("Open actions", empty);
+}
 
-  const actionsButton = create("button", "inline-button", "View all");
-  actionsButton.type = "button";
-  actionsButton.addEventListener("click", () => { state.personDetailTab = "action-items"; renderPersonActiveTab(); });
-  wrapper.append(personSection("Assigned action items", renderPersonActions(actionItems.items.slice(0, 5)), actionsButton));
-  return wrapper;
+function renderPersonOverview() {
+  const { insight, meetings, overviewActionItems } = state.personDetail;
+  const dashboard = create("div", "person-dashboard");
+  const activity = personSection("Recent activity", create("div", "person-recent-stack"));
+  const activityBody = activity.querySelector(".person-recent-stack");
+  if (meetings.items.length) meetings.items.slice(0, 3).forEach((meeting) => activityBody.append(renderFeaturedMeeting(meeting)));
+  else activityBody.append(renderFeaturedMeeting(null));
+  const sidebar = create("aside", "person-overview-sidebar");
+  sidebar.append(renderAtGlance(insight.stats), renderOpenActionsPanel(overviewActionItems));
+  dashboard.append(activity, sidebar);
+  return dashboard;
 }
 
 async function refreshPersonContributions(query) {
@@ -994,9 +1056,10 @@ function renderPersonActiveTab() {
 function renderPersonDetail() {
   const { person, stats } = state.personDetail.insight;
   elements.detail.replaceChildren();
+  elements.detail.classList.add("person-page");
   elements.detail.classList.remove("hidden");
   elements.shell.classList.add("detail-view");
-  const header = create("header", "detail-header");
+  const header = create("header", "detail-header person-profile-header");
   const returnContext = state.personReturnContext;
   const backLabel = returnContext ? `Back to ${returnContext.meetingTitle}` : "Back to persons";
   const backButton = create("button", "back-button", backLabel);
@@ -1005,17 +1068,12 @@ function renderPersonDetail() {
   backButton.addEventListener("click", returnFromPersonDetail);
   header.append(backButton);
 
-  const identity = create("div", "person-detail-identity");
+  const identity = create("div", "person-profile-hero");
   const avatar = create("span", "person-avatar", initials(person.name));
   avatar.style.setProperty("--avatar-color", avatarColor(person.name));
-  const title = create("div", "detail-title");
+  const title = create("div", "person-profile-copy");
   title.append(create("h2", "", person.name));
-  const contact = create("div", "person-contact");
-  if (person.email) contact.append(create("span", "", person.email));
-  if (person.phone_number) contact.append(create("span", "", person.phone_number));
-  if (stats.last_participated_at) contact.append(create("span", "", `Last participated ${formatDate(stats.last_participated_at, false)}`));
-  if (!contact.children.length) contact.append(create("span", "", "No contact information recorded"));
-  title.append(contact);
+  title.append(create("p", "person-last-seen", stats.last_participated_at ? `Last participated ${formatDate(stats.last_participated_at, false)}` : "No meeting participation yet"));
   identity.append(avatar, title);
   header.append(identity);
 
@@ -1085,6 +1143,13 @@ bindDropTarget(elements.modalFileZone, useFile);
 
 [elements.search, elements.dateFilter, elements.statusFilter].forEach((control) => control.addEventListener("input", () => { state.meetingPage = 1; renderMeetingList(); }));
 elements.personSearch.addEventListener("input", renderPersonDirectory);
+elements.personOpenActionsFilter.addEventListener("click", () => {
+  state.personOpenActionsOnly = !state.personOpenActionsOnly;
+  elements.personOpenActionsFilter.classList.toggle("active", state.personOpenActionsOnly);
+  elements.personOpenActionsFilter.setAttribute("aria-pressed", String(state.personOpenActionsOnly));
+  renderPersonDirectory();
+});
+elements.personSort.addEventListener("change", renderPersonDirectory);
 document.querySelector("#view-all-meetings").addEventListener("click", () => document.querySelector("#all-meetings").scrollIntoView({ behavior: "smooth", block: "start" }));
 
 function openSidebar() { elements.sidebar.classList.add("open"); elements.sidebarScrim.classList.remove("hidden"); }
