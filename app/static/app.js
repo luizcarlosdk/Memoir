@@ -29,12 +29,34 @@ const state = {
   personDetail: null,
   personDetailTab: "overview",
   personContributionQuery: "",
-  personActionStatus: "",
+  personActionStatuses: new Set(),
   personOpenActionsOnly: false,
   activeTab: "overview",
   meetingPage: 1,
   meetingsPerPage: 5,
 };
+
+const MOTION = Object.freeze({
+  duration: { short: 100, medium: 300, long: 500 },
+  easing: {
+    standard: "cubic-bezier(.2, 0, 0, 1)",
+    accelerate: "cubic-bezier(.3, 0, .8, .15)",
+    decelerate: "cubic-bezier(.05, .7, .1, 1)",
+  },
+});
+
+const TAB_ORDER = ["overview", "transcript", "participants"];
+const PERSON_TAB_ORDER = ["overview", "meetings", "contributions", "action-items"];
+const PERSON_ACTION_FILTERS = Object.freeze([
+  ["PENDING", "Pending"],
+  ["IN_PROGRESS", "In progress"],
+  ["BLOCKED", "Blocked"],
+  ["FINISHED", "Finished"],
+  ["CANCELLED", "Cancelled"],
+]);
+let tabTransitionVersion = 0;
+let personTabTransitionVersion = 0;
+let modalReturnFocus = null;
 
 const elements = {
   shell: document.querySelector(".app-shell"),
@@ -59,12 +81,10 @@ const elements = {
   modal: document.querySelector("#modal-backdrop"),
   form: document.querySelector("#summary-form"),
   fileInput: document.querySelector("#transcript-file"),
-  quickFile: document.querySelector("#quick-file"),
   transcript: document.querySelector("#raw-transcript"),
   fileLabel: document.querySelector("#file-label"),
   formError: document.querySelector("#form-error"),
   submitButton: document.querySelector("#submit-button"),
-  headerUploadButton: document.querySelector("#header-upload-button"),
   modalFileZone: document.querySelector("#modal-file-zone"),
   sidebar: document.querySelector("#sidebar"),
   sidebarScrim: document.querySelector("#sidebar-scrim"),
@@ -101,6 +121,24 @@ function prefersReducedMotion() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
+function animateIterable(container, selector) {
+  if (prefersReducedMotion()) return;
+  container.querySelectorAll(selector).forEach((item, index) => {
+    item.animate(
+      [
+        { opacity: 0, transform: "translateY(10px) scale(.985)" },
+        { opacity: 1, transform: "translateY(0) scale(1)" },
+      ],
+      {
+        duration: MOTION.duration.medium,
+        delay: Math.min(index * 35, 210),
+        easing: MOTION.easing.decelerate,
+        fill: "both",
+      },
+    );
+  });
+}
+
 function transitionPage(update, direction = "forward") {
   if (!document.startViewTransition || prefersReducedMotion()) {
     update();
@@ -116,7 +154,7 @@ function initials(name = "?") {
 }
 
 function avatarColor(name = "") {
-  const colors = ["#0f766e", "#2563eb", "#7c3aed", "#ea580c", "#db2777", "#15803d"];
+  const colors = ["#006a60", "#405d73", "#66558f", "#8b5000", "#8f4a5f", "#3f6b47"];
   const hash = [...name].reduce((sum, character) => sum + character.charCodeAt(0), 0);
   return colors[hash % colors.length];
 }
@@ -303,6 +341,8 @@ async function loadMeetings(preferredMeetingId = null) {
     const selection = preferred || existing || null;
     state.selectedMeetingId = selection?.id || null;
     renderMeetingList();
+    animateIterable(elements.recentList, ".recent-meeting-card");
+    animateIterable(elements.list, ".meeting-row");
     renderDetail(selection);
   } catch (error) {
     state.meetings = [];
@@ -322,6 +362,7 @@ async function loadPersons() {
     const body = await request(`/persons?${params}`);
     state.persons = body.items || [];
     renderPersonDirectory();
+    animateIterable(elements.peopleList, ".person-card");
   } catch (error) {
     state.persons = [];
     renderPersonDirectory();
@@ -411,7 +452,7 @@ function showSection(section) {
     if (section === "meetings") renderMeetingList();
     if (section === "persons") renderPersonDirectory();
     window.scrollTo({ top: 0 });
-  }, "back");
+  }, section === "persons" ? "forward" : "back");
 }
 
 function filteredMeetings() {
@@ -550,7 +591,10 @@ function insightCard(title, iconName, body, countLabel = null, accent = "purple"
   const heading = create("header", "insight-card-heading");
   heading.append(icon(iconName), create("h3", "", title));
   card.append(heading, body);
-  if (countLabel) card.append(create("span", "insight-count", countLabel));
+  if (countLabel) {
+    card.classList.add("has-count");
+    card.append(create("span", "insight-count", countLabel));
+  }
   return card;
 }
 
@@ -606,7 +650,11 @@ function renderOverview(meeting) {
   if (meeting.transcript?.length > 3) {
     const viewAll = create("button", "preview-link", "View full transcript");
     viewAll.type = "button";
-    viewAll.addEventListener("click", () => { state.activeTab = "transcript"; renderActiveTab(meeting); });
+    viewAll.addEventListener("click", () => {
+      const previousTab = state.activeTab;
+      state.activeTab = "transcript";
+      renderActiveTab(meeting, previousTab);
+    });
     previewHeading.append(viewAll);
   }
   preview.append(previewHeading, renderTranscript(meeting, 3));
@@ -668,19 +716,58 @@ function renderParticipants(meeting) {
   return list;
 }
 
-function renderActiveTab(meeting) {
+async function renderActiveTab(meeting, previousTab = null) {
   const body = elements.detail.querySelector(".detail-body");
+  const version = ++tabTransitionVersion;
+  const previousIndex = TAB_ORDER.indexOf(previousTab);
+  const nextIndex = TAB_ORDER.indexOf(state.activeTab);
+  const direction = previousIndex < 0 || nextIndex >= previousIndex ? 1 : -1;
+
+  if (body.childElementCount && previousTab && !prefersReducedMotion()) {
+    const outgoing = body.animate(
+      [
+        { opacity: 1, transform: "translateX(0) scale(1)" },
+        { opacity: 0, transform: `translateX(${-10 * direction}px) scale(.985)` },
+      ],
+      {
+        duration: MOTION.duration.short,
+        easing: MOTION.easing.accelerate,
+        fill: "forwards",
+      },
+    );
+    await outgoing.finished.catch(() => {});
+    outgoing.cancel();
+    if (version !== tabTransitionVersion) return;
+  }
+
   body.replaceChildren();
   if (state.activeTab === "overview") body.append(renderOverview(meeting));
   if (state.activeTab === "transcript") body.append(renderTranscript(meeting));
   if (state.activeTab === "participants") body.append(renderParticipants(meeting));
-  elements.detail.querySelectorAll(".detail-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === state.activeTab));
+  elements.detail.querySelectorAll(".detail-tab").forEach((tab) => {
+    const selected = tab.dataset.tab === state.activeTab;
+    tab.classList.toggle("active", selected);
+    tab.setAttribute("aria-selected", String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+  });
+  body.setAttribute("aria-labelledby", `meeting-tab-${state.activeTab}`);
+
   if (!prefersReducedMotion()) {
     body.animate(
-      [{ opacity: 0, transform: "translateY(7px)" }, { opacity: 1, transform: "translateY(0)" }],
-      { duration: 220, easing: "cubic-bezier(.2, .75, .25, 1)" },
+      [
+        { opacity: 0, transform: `translateX(${14 * direction}px) scale(.985)` },
+        { opacity: 1, transform: "translateX(0) scale(1)" },
+      ],
+      { duration: MOTION.duration.medium, easing: MOTION.easing.decelerate },
     );
   }
+
+  const iterableSelector = state.activeTab === "participants"
+    ? ".participant-row"
+    : state.activeTab === "transcript"
+      ? ".transcript-row"
+      : ".insight-card, .transcript-preview";
+  animateIterable(body, iterableSelector);
 }
 
 function showMeetingList() {
@@ -728,14 +815,42 @@ function renderDetail(meeting) {
   actions.append(moreButton); titleRow.append(title, actions); header.append(titleRow);
   const tabs = create("nav", "detail-tabs", undefined);
   tabs.setAttribute("aria-label", "Meeting details");
+  tabs.setAttribute("role", "tablist");
   [["overview", "Overview"], ["transcript", "Transcript"], ["participants", `Participants${people.length ? ` (${people.length})` : ""}`]].forEach(([key, label]) => {
     const tab = create("button", `detail-tab${state.activeTab === key ? " active" : ""}`, label);
-    tab.type = "button"; tab.dataset.tab = key;
-    tab.addEventListener("click", () => { state.activeTab = key; renderActiveTab(meeting); });
+    tab.type = "button";
+    tab.id = `meeting-tab-${key}`;
+    tab.dataset.tab = key;
+    tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-controls", "meeting-tab-panel");
+    tab.setAttribute("aria-selected", String(state.activeTab === key));
+    tab.tabIndex = state.activeTab === key ? 0 : -1;
+    tab.addEventListener("click", () => {
+      if (state.activeTab === key) return;
+      const previousTab = state.activeTab;
+      state.activeTab = key;
+      renderActiveTab(meeting, previousTab);
+    });
     tabs.append(tab);
   });
+  tabs.addEventListener("keydown", (event) => {
+    const currentIndex = TAB_ORDER.indexOf(state.activeTab);
+    let nextIndex = null;
+    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % TAB_ORDER.length;
+    if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + TAB_ORDER.length) % TAB_ORDER.length;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = TAB_ORDER.length - 1;
+    if (nextIndex === null) return;
+    event.preventDefault();
+    tabs.querySelector(`[data-tab="${TAB_ORDER[nextIndex]}"]`).click();
+    tabs.querySelector(`[data-tab="${TAB_ORDER[nextIndex]}"]`).focus();
+  });
   header.append(tabs);
-  elements.detail.append(header, create("div", "detail-body"));
+  const detailBody = create("div", "detail-body");
+  detailBody.id = "meeting-tab-panel";
+  detailBody.setAttribute("role", "tabpanel");
+  detailBody.setAttribute("aria-labelledby", `meeting-tab-${state.activeTab}`);
+  elements.detail.append(header, detailBody);
   renderActiveTab(meeting);
   elements.detailPanel.scrollTop = 0;
 }
@@ -754,7 +869,7 @@ async function selectPerson(personId, returnContext = null) {
     state.personReturnContext = returnContext;
     state.personDetailTab = "overview";
     state.personContributionQuery = "";
-    state.personActionStatus = "";
+    state.personActionStatuses.clear();
     elements.shell.classList.add("detail-view");
     elements.meetingColumn.classList.add("hidden");
     elements.peopleColumn.classList.remove("hidden");
@@ -785,6 +900,7 @@ async function selectPerson(personId, returnContext = null) {
       meetings,
       contributions,
       actionItems,
+      allActionItems: actionItems,
       overviewActionItems: actionItems.items,
     };
     renderPersonDetail();
@@ -1001,23 +1117,45 @@ async function refreshPersonContributions(query) {
   }
 }
 
-async function refreshPersonActions(status) {
-  const personId = state.selectedPersonId;
-  state.personActionStatus = status;
-  try {
-    const params = personRequestParams({ limit: "100", offset: "0" });
-    if (status) params.set("status", status);
-    const actionItems = await request(`/persons/${encodeURIComponent(personId)}/action-items?${params}`);
-    if (state.selectedPersonId !== personId || !state.personDetail) return;
-    state.personDetail.actionItems = actionItems;
-    renderPersonActiveTab();
-  } catch (error) {
-    showToast(error.message);
-  }
+function refreshPersonActions(statuses) {
+  state.personActionStatuses = new Set(statuses);
+  const source = state.personDetail.allActionItems;
+  const items = state.personActionStatuses.size
+    ? source.items.filter((item) => state.personActionStatuses.has(item.status))
+    : source.items;
+  const actionItems = {
+    ...source,
+    items,
+    total: state.personActionStatuses.size ? items.length : source.total,
+  };
+  state.personDetail.actionItems = actionItems;
+  return actionItems;
 }
 
-function renderPersonActiveTab() {
+async function renderPersonActiveTab(previousTab = null) {
   const body = elements.detail.querySelector(".detail-body");
+  const version = ++personTabTransitionVersion;
+  const previousIndex = PERSON_TAB_ORDER.indexOf(previousTab);
+  const nextIndex = PERSON_TAB_ORDER.indexOf(state.personDetailTab);
+  const direction = previousIndex < 0 || nextIndex >= previousIndex ? 1 : -1;
+
+  if (body.childElementCount && previousTab && !prefersReducedMotion()) {
+    const outgoing = body.animate(
+      [
+        { opacity: 1, transform: "translateX(0) scale(1)" },
+        { opacity: 0, transform: `translateX(${-10 * direction}px) scale(.985)` },
+      ],
+      {
+        duration: MOTION.duration.short,
+        easing: MOTION.easing.accelerate,
+        fill: "forwards",
+      },
+    );
+    await outgoing.finished.catch(() => {});
+    outgoing.cancel();
+    if (version !== personTabTransitionVersion) return;
+  }
+
   body.replaceChildren();
   if (state.personDetailTab === "overview") body.append(renderPersonOverview());
   if (state.personDetailTab === "meetings") {
@@ -1040,17 +1178,66 @@ function renderPersonActiveTab() {
     body.append(form, create("p", "person-result-summary", `${state.personDetail.contributions.total} ${state.personDetail.contributions.total === 1 ? "contribution" : "contributions"}`), renderPersonContributions(state.personDetail.contributions.items));
   }
   if (state.personDetailTab === "action-items") {
-    const tools = create("div", "person-tab-tools");
-    const select = create("select");
-    select.setAttribute("aria-label", "Filter action items by status");
-    [["", "All statuses"], ["PENDING", "Pending"], ["IN_PROGRESS", "In progress"], ["BLOCKED", "Blocked"], ["FINISHED", "Finished"], ["CANCELLED", "Cancelled"]].forEach(([value, label]) => {
-      const option = create("option", "", label); option.value = value; option.selected = state.personActionStatus === value; select.append(option);
+    const filters = create("fieldset", "person-status-filters");
+    filters.append(create("legend", "", "Filter by status"));
+    const options = create("div", "person-status-options");
+    const summary = create("p", "person-result-summary");
+    const results = create("div", "person-action-results");
+    const updateResults = (actionItems) => {
+      summary.textContent = `${actionItems.total} ${actionItems.total === 1 ? "action item" : "action items"}`;
+      results.replaceChildren(renderPersonActions(actionItems.items));
+      animateIterable(results, ".person-todo-item");
+    };
+
+    PERSON_ACTION_FILTERS.forEach(([value, label]) => {
+      const option = create("label", "person-status-option");
+      const input = create("input");
+      input.type = "checkbox";
+      input.name = "person-action-status";
+      input.value = value;
+      input.checked = state.personActionStatuses.has(value);
+      const indicator = create("span", "person-status-check");
+      indicator.append(icon("check"));
+      const chip = create("span", "person-status-chip");
+      chip.append(indicator, create("span", "person-status-label", label));
+      option.append(input, chip);
+      options.append(option);
+      input.addEventListener("change", () => {
+        const statuses = [...options.querySelectorAll("input:checked")].map((control) => control.value);
+        updateResults(refreshPersonActions(statuses));
+      });
     });
-    select.addEventListener("change", () => refreshPersonActions(select.value));
-    tools.append(select);
-    body.append(tools, create("p", "person-result-summary", `${state.personDetail.actionItems.total} ${state.personDetail.actionItems.total === 1 ? "action item" : "action items"}`), renderPersonActions(state.personDetail.actionItems.items));
+
+    filters.append(options, create("p", "person-status-hint", "Select any combination. No selection shows all items."));
+    updateResults(state.personDetail.actionItems);
+    body.append(filters, summary, results);
   }
-  elements.detail.querySelectorAll(".detail-tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === state.personDetailTab));
+  elements.detail.querySelectorAll(".detail-tab").forEach((tab) => {
+    const selected = tab.dataset.tab === state.personDetailTab;
+    tab.classList.toggle("active", selected);
+    tab.setAttribute("aria-selected", String(selected));
+    tab.tabIndex = selected ? 0 : -1;
+  });
+  body.setAttribute("aria-labelledby", `person-tab-${state.personDetailTab}`);
+
+  if (!prefersReducedMotion()) {
+    body.animate(
+      [
+        { opacity: 0, transform: `translateX(${14 * direction}px) scale(.985)` },
+        { opacity: 1, transform: "translateX(0) scale(1)" },
+      ],
+      { duration: MOTION.duration.medium, easing: MOTION.easing.decelerate },
+    );
+  }
+
+  const iterableSelector = state.personDetailTab === "meetings"
+    ? ".person-meeting-card"
+    : state.personDetailTab === "contributions"
+      ? ".contribution-card"
+      : state.personDetailTab === "action-items"
+        ? ".person-todo-item"
+        : ".person-dashboard > .person-section, .person-overview-sidebar > .person-section";
+  animateIterable(body, iterableSelector);
 }
 
 function renderPersonDetail() {
@@ -1079,19 +1266,48 @@ function renderPersonDetail() {
 
   const tabs = create("nav", "detail-tabs");
   tabs.setAttribute("aria-label", "Person details");
+  tabs.setAttribute("role", "tablist");
   [["overview", "Overview"], ["meetings", `Meetings (${state.personDetail.meetings.total})`], ["contributions", `Contributions (${state.personDetail.contributions.total})`], ["action-items", `Action items (${state.personDetail.actionItems.total})`]].forEach(([key, label]) => {
     const tab = create("button", `detail-tab${state.personDetailTab === key ? " active" : ""}`, label);
     tab.type = "button";
+    tab.id = `person-tab-${key}`;
     tab.dataset.tab = key;
-    tab.addEventListener("click", () => { state.personDetailTab = key; renderPersonActiveTab(); });
+    tab.setAttribute("role", "tab");
+    tab.setAttribute("aria-controls", "person-tab-panel");
+    tab.setAttribute("aria-selected", String(state.personDetailTab === key));
+    tab.tabIndex = state.personDetailTab === key ? 0 : -1;
+    tab.addEventListener("click", () => {
+      if (state.personDetailTab === key) return;
+      const previousTab = state.personDetailTab;
+      state.personDetailTab = key;
+      renderPersonActiveTab(previousTab);
+    });
     tabs.append(tab);
   });
+  tabs.addEventListener("keydown", (event) => {
+    const currentIndex = PERSON_TAB_ORDER.indexOf(state.personDetailTab);
+    let nextIndex = null;
+    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % PERSON_TAB_ORDER.length;
+    if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + PERSON_TAB_ORDER.length) % PERSON_TAB_ORDER.length;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = PERSON_TAB_ORDER.length - 1;
+    if (nextIndex === null) return;
+    event.preventDefault();
+    const nextTab = tabs.querySelector(`[data-tab="${PERSON_TAB_ORDER[nextIndex]}"]`);
+    nextTab.click();
+    nextTab.focus();
+  });
   header.append(tabs);
-  elements.detail.append(header, create("div", "detail-body"));
+  const detailBody = create("div", "detail-body");
+  detailBody.id = "person-tab-panel";
+  detailBody.setAttribute("role", "tabpanel");
+  detailBody.setAttribute("aria-labelledby", `person-tab-${state.personDetailTab}`);
+  elements.detail.append(header, detailBody);
   renderPersonActiveTab();
 }
 
 function openModal() {
+  modalReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   elements.formError.classList.add("hidden");
   elements.modal.classList.remove("hidden");
   document.body.style.overflow = "hidden";
@@ -1101,6 +1317,8 @@ function openModal() {
 function closeModal() {
   elements.modal.classList.add("hidden");
   document.body.style.overflow = "";
+  modalReturnFocus?.focus();
+  modalReturnFocus = null;
 }
 
 async function useFile(file) {
@@ -1136,8 +1354,6 @@ elements.modal.addEventListener("click", (event) => { if (event.target === eleme
 elements.workspaceButton.addEventListener("click", () => toggleWorkspaceMenu());
 document.addEventListener("click", (event) => { if (!event.target.closest(".workspace-picker")) toggleWorkspaceMenu(false); });
 
-elements.headerUploadButton.addEventListener("click", () => elements.quickFile.click());
-elements.quickFile.addEventListener("change", async () => { const file = elements.quickFile.files[0]; if (file) { openModal(); await useFile(file); } elements.quickFile.value = ""; });
 elements.fileInput.addEventListener("change", () => useFile(elements.fileInput.files[0]));
 bindDropTarget(elements.modalFileZone, useFile);
 
@@ -1162,12 +1378,24 @@ elements.meetingsNav.addEventListener("click", (event) => { event.preventDefault
 elements.personsNav.addEventListener("click", (event) => { event.preventDefault(); showSection("persons"); closeSidebar(); });
 
 document.addEventListener("keydown", (event) => {
-  if (event.key !== "Escape") return;
-  if (!elements.modal.classList.contains("hidden")) closeModal();
-  else if (elements.sidebar.classList.contains("open")) closeSidebar();
-  else if (elements.shell.classList.contains("detail-view")) {
-    if (state.activeSection === "persons") returnFromPersonDetail();
-    else showMeetingList();
+  if (event.key === "Tab" && !elements.modal.classList.contains("hidden")) {
+    const focusable = [...elements.modal.querySelectorAll("button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex='-1'])")]
+      .filter((element) => !element.hidden && element.getClientRects().length);
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    return;
+  }
+
+  if (event.key === "Escape") {
+    if (!elements.modal.classList.contains("hidden")) closeModal();
+    else if (elements.sidebar.classList.contains("open")) closeSidebar();
+    else if (elements.shell.classList.contains("detail-view")) {
+      if (state.activeSection === "persons") returnFromPersonDetail();
+      else showMeetingList();
+    }
   }
 });
 
