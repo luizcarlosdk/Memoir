@@ -19,6 +19,7 @@ from app.helpers.person import normalize_person_name
 from app.orchestrator import TranscriptOrchestrator
 from app.services.person_insight import (
     PersonActionItemPageResponse,
+    PersonActionItemResponse,
     PersonContributionPageResponse,
     PersonDirectoryPageResponse,
     PersonInsightResponse,
@@ -28,6 +29,7 @@ from app.services.person_insight import (
     get_person_insight,
     get_person_meetings,
     list_people,
+    serialize_person_action_item,
 )
 
 router = APIRouter()
@@ -52,6 +54,8 @@ class TranscriptResponse(TypedDict):
 
 
 class ActionItemResponse(TypedDict):
+    id: str
+    assignee_id: str | None
     content: str
     assignee: str | None
     status: str
@@ -85,6 +89,10 @@ class MeetingSummaryResponse(TypedDict):
     meeting_id: str
     message: str
     meeting: MeetingResponse
+
+
+class ActionItemStatusUpdate(BaseModel):
+    status: ActionItemStatus
 
 
 class MeetingListResponse(TypedDict):
@@ -234,15 +242,19 @@ def serialize_meeting(meeting: Meeting) -> MeetingResponse:
             }
             for segment in meeting.child_transcripts
         ],
-        "action_items": [
-            {
-                "content": item.content,
-                "assignee": item.assignee.name if item.assignee else None,
-                "status": item.status.value,
-                "due_date": item.due_date.isoformat() if item.due_date else None,
-            }
-            for item in meeting.action_items
-        ],
+        "action_items": [serialize_action_item(item) for item in meeting.action_items],
+    }
+
+
+def serialize_action_item(item: ActionItem) -> ActionItemResponse:
+    """Return an action item shape shared by Meeting views and updates."""
+    return {
+        "id": item.id,
+        "assignee_id": item.assignee_id,
+        "content": item.content,
+        "assignee": item.assignee.name if item.assignee else None,
+        "status": item.status.value,
+        "due_date": item.due_date.isoformat() if item.due_date else None,
     }
 
 
@@ -395,3 +407,83 @@ def retrieve_person_action_items(
     if result is None:
         raise HTTPException(status_code=404, detail="Person not found")
     return result
+
+
+@router.patch("/persons/{person_id}/action-items/{action_item_id}")
+def update_person_action_item_status(
+    person_id: str,
+    action_item_id: str,
+    payload: ActionItemStatusUpdate,
+    workspace_id: str | None = None,
+    db: Session = Depends(get_db_session),
+) -> PersonActionItemResponse:
+    """Update the status of an action item assigned to a person."""
+    action_query = (
+        db.query(ActionItem)
+        .join(Person, Person.id == ActionItem.assignee_id)
+        .join(Meeting, Meeting.id == ActionItem.meeting_id)
+        .options(selectinload(ActionItem.parent_meeting))
+        .filter(
+            ActionItem.id == action_item_id,
+            ActionItem.assignee_id == person_id,
+        )
+    )
+    if workspace_id:
+        action_query = action_query.filter(
+            Person.workspace_id == workspace_id,
+            Meeting.workspace_id == workspace_id,
+        )
+
+    action_item = action_query.first()
+    if action_item is None:
+        raise HTTPException(status_code=404, detail="Action item not found")
+
+    action_item.status = payload.status
+    try:
+        db.commit()
+        db.refresh(action_item)
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Failed to update action item status")
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to update the action item status.",
+        ) from exc
+
+    return serialize_person_action_item(action_item)
+
+
+@router.patch("/action-items/{action_item_id}")
+def update_action_item_status(
+    action_item_id: str,
+    payload: ActionItemStatusUpdate,
+    workspace_id: str | None = None,
+    db: Session = Depends(get_db_session),
+) -> ActionItemResponse:
+    """Update an action item's status from a Meeting view."""
+    action_query = (
+        db.query(ActionItem)
+        .join(Meeting, Meeting.id == ActionItem.meeting_id)
+        .options(selectinload(ActionItem.assignee))
+        .filter(ActionItem.id == action_item_id)
+    )
+    if workspace_id:
+        action_query = action_query.filter(Meeting.workspace_id == workspace_id)
+
+    action_item = action_query.first()
+    if action_item is None:
+        raise HTTPException(status_code=404, detail="Action item not found")
+
+    action_item.status = payload.status
+    try:
+        db.commit()
+        db.refresh(action_item)
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Failed to update action item status")
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to update the action item status.",
+        ) from exc
+
+    return serialize_action_item(action_item)

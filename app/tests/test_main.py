@@ -4,6 +4,7 @@ from collections.abc import Generator
 from datetime import datetime, timezone
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
@@ -110,12 +111,17 @@ def test_frontend_page_is_served(client: TestClient) -> None:
     assert 'id="people-list"' in response.text
     assert 'id="person-open-actions-filter"' in response.text
     assert 'id="person-sort"' in response.text
+    assert 'id="action-status-backdrop"' in response.text
 
     script = client.get("/app.js")
     assert script.status_code == 200
     assert "/persons/${encodeURIComponent(personId)}/meetings" in script.text
     assert "/persons/${encodeURIComponent(personId)}/contributions" in script.text
     assert "/persons/${encodeURIComponent(personId)}/action-items" in script.text
+    assert "openPersonActionStatusEditor(item, row)" in script.text
+    assert "openActionStatusEditor(item, row" in script.text
+    assert "/action-items/${encodeURIComponent(actionItemId)}" in script.text
+    assert 'method: "PATCH"' in script.text
     assert 'create("ul", "person-todo-list")' in script.text
     assert "loadMeetings(body.meeting_id),\n      loadPersons()," in script.text
 
@@ -304,7 +310,116 @@ def test_plural_person_routes_are_documented(client: TestClient) -> None:
     assert "/persons/{person_id}/meetings" in paths
     assert "/persons/{person_id}/contributions" in paths
     assert "/persons/{person_id}/action-items" in paths
+    assert "/persons/{person_id}/action-items/{action_item_id}" in paths
+    assert "/action-items/{action_item_id}" in paths
     assert "/person/{person_id}" not in paths
+
+
+def test_update_action_item_status_routes(
+    db_session_factory: sessionmaker[Session],
+) -> None:
+    session = db_session_factory()
+    try:
+        person = Person(name="Ana", workspace_id=TEST_WORKSPACE_ID)
+        meeting = Meeting(
+            title="Release planning",
+            workspace_id=TEST_WORKSPACE_ID,
+            participants=[person],
+        )
+        session.add_all([person, meeting])
+        session.flush()
+        action_item = ActionItem(
+            meeting_id=meeting.id,
+            assignee=person,
+            content="Prepare release notes.",
+            parent_meeting=meeting,
+        )
+        session.add(action_item)
+        session.commit()
+        person_id = person.id
+        action_item_id = action_item.id
+        meeting_id = meeting.id
+        with pytest.raises(HTTPException) as exc_info:
+            routes.update_person_action_item_status(
+                person_id=person_id,
+                action_item_id=action_item_id,
+                payload=routes.ActionItemStatusUpdate(
+                    status=ActionItemStatus.FINISHED
+                ),
+                workspace_id="another-workspace",
+                db=session,
+            )
+        assert exc_info.value.status_code == 404
+
+        response = routes.update_person_action_item_status(
+            person_id=person_id,
+            action_item_id=action_item_id,
+            payload=routes.ActionItemStatusUpdate(
+                status=ActionItemStatus.IN_PROGRESS
+            ),
+            workspace_id=TEST_WORKSPACE_ID,
+            db=session,
+        )
+
+        assert response == {
+            "id": action_item_id,
+            "assignee_id": person_id,
+            "content": "Prepare release notes.",
+            "status": "IN_PROGRESS",
+            "due_date": None,
+            "meeting": {"id": meeting_id, "title": "Release planning"},
+        }
+        persisted_action_item = session.get(ActionItem, action_item_id)
+        assert persisted_action_item is not None
+        assert persisted_action_item.status is ActionItemStatus.IN_PROGRESS
+
+        with pytest.raises(HTTPException) as exc_info:
+            routes.update_action_item_status(
+                action_item_id=action_item_id,
+                payload=routes.ActionItemStatusUpdate(
+                    status=ActionItemStatus.FINISHED
+                ),
+                workspace_id="another-workspace",
+                db=session,
+            )
+        assert exc_info.value.status_code == 404
+
+        meeting_response = routes.update_action_item_status(
+            action_item_id=action_item_id,
+            payload=routes.ActionItemStatusUpdate(
+                status=ActionItemStatus.FINISHED
+            ),
+            workspace_id=TEST_WORKSPACE_ID,
+            db=session,
+        )
+        assert meeting_response == {
+            "id": action_item_id,
+            "assignee_id": person_id,
+            "content": "Prepare release notes.",
+            "assignee": "Ana",
+            "status": "FINISHED",
+            "due_date": None,
+        }
+
+        unassigned_action = ActionItem(
+            meeting_id=meeting_id,
+            content="Publish the release notes.",
+        )
+        session.add(unassigned_action)
+        session.commit()
+        unassigned_response = routes.update_action_item_status(
+            action_item_id=unassigned_action.id,
+            payload=routes.ActionItemStatusUpdate(
+                status=ActionItemStatus.BLOCKED
+            ),
+            workspace_id=TEST_WORKSPACE_ID,
+            db=session,
+        )
+        assert unassigned_response["assignee_id"] is None
+        assert unassigned_response["assignee"] is None
+        assert unassigned_response["status"] == "BLOCKED"
+    finally:
+        session.close()
 
 
 def test_retrieve_person_insight_respects_workspace(

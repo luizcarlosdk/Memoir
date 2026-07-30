@@ -15,6 +15,7 @@ const ICONS = {
   list: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>',
   panel: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M14 4v16M7 8h3M7 12h3"/></svg>',
   more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1" fill="currentColor" stroke="none"/></svg>',
+  edit: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10.6-10.6a2 2 0 0 0-2.8-2.8L5.4 16.2 4 20Z"/><path d="m14.8 6.8 2.8 2.8"/></svg>',
 };
 
 const state = {
@@ -54,9 +55,19 @@ const PERSON_ACTION_FILTERS = Object.freeze([
   ["FINISHED", "Finished"],
   ["CANCELLED", "Cancelled"],
 ]);
+const PERSON_ACTION_STATUS_DESCRIPTIONS = Object.freeze({
+  PENDING: "Not started yet",
+  IN_PROGRESS: "Work is underway",
+  BLOCKED: "Waiting on something else",
+  FINISHED: "Completed successfully",
+  CANCELLED: "No longer planned",
+});
+const OPEN_ACTION_STATUSES = new Set(["PENDING", "IN_PROGRESS", "BLOCKED"]);
 let tabTransitionVersion = 0;
 let personTabTransitionVersion = 0;
 let modalReturnFocus = null;
+let actionStatusReturnFocus = null;
+let editingActionItem = null;
 
 const elements = {
   shell: document.querySelector(".app-shell"),
@@ -86,6 +97,13 @@ const elements = {
   formError: document.querySelector("#form-error"),
   submitButton: document.querySelector("#submit-button"),
   modalFileZone: document.querySelector("#modal-file-zone"),
+  actionStatusModal: document.querySelector("#action-status-backdrop"),
+  actionStatusForm: document.querySelector("#action-status-form"),
+  actionStatusContent: document.querySelector("#action-status-content"),
+  actionStatusMeeting: document.querySelector("#action-status-meeting"),
+  actionStatusOptions: document.querySelector("#action-status-options"),
+  actionStatusError: document.querySelector("#action-status-error"),
+  actionStatusSubmit: document.querySelector("#action-status-submit"),
   sidebar: document.querySelector("#sidebar"),
   sidebarScrim: document.querySelector("#sidebar-scrim"),
   toast: document.querySelector("#toast"),
@@ -187,6 +205,10 @@ function durationLabel(minutes) {
   const remainder = minutes % 60;
   if (!hours) return `${minutes} min`;
   return `${hours}h${remainder ? ` ${remainder}m` : ""}`;
+}
+
+function formatActionStatus(status) {
+  return String(status).replaceAll("_", " ").toLocaleLowerCase().replace(/^./, (character) => character.toLocaleUpperCase());
 }
 
 function meetingPeople(meeting) {
@@ -615,17 +637,38 @@ function renderActionList(meeting) {
     return list;
   }
   meeting.action_items.forEach((item) => {
-    const done = String(item.status).toUpperCase() === "FINISHED";
-    const row = create("li", `action-item${done ? " done" : ""}`);
+    const status = String(item.status).toUpperCase();
+    const done = status === "FINISHED";
+    const cancelled = status === "CANCELLED";
+    const row = create("li", `action-item editable${done ? " done" : ""}${cancelled ? " cancelled" : ""}`);
+    row.tabIndex = 0;
+    row.setAttribute("role", "button");
+    row.setAttribute("aria-label", `Edit status for ${item.content}. Current status: ${formatActionStatus(item.status)}`);
     const check = create("span", "action-check");
     if (done) check.append(icon("check"));
+    if (cancelled) check.append(icon("close"));
     const content = create("div");
     content.append(create("div", "action-content", item.content));
     const meta = create("div", "action-meta");
     if (item.assignee) meta.append(create("span", "action-assignee", item.assignee));
     if (item.due_date) { const due = create("span"); due.append(icon("calendar"), document.createTextNode(formatDate(item.due_date, false))); meta.append(due); }
-    if (meta.children.length) content.append(meta);
-    row.append(check, content); list.append(row);
+    const statusBadge = create("span", `action-status ${actionStatusClass(item.status)}`);
+    statusBadge.append(document.createTextNode(formatActionStatus(item.status)), icon("edit", "action-status-edit-icon"));
+    meta.append(statusBadge);
+    content.append(meta);
+    row.append(check, content);
+    const editStatus = () => openActionStatusEditor(item, row, {
+      meetingId: meeting.id,
+      meetingTitle: meeting.title || "Untitled meeting",
+    });
+    row.addEventListener("click", editStatus);
+    row.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        editStatus();
+      }
+    });
+    list.append(row);
   });
   return list;
 }
@@ -1018,7 +1061,10 @@ function renderPersonActions(actionItems) {
     const status = String(item.status).toUpperCase();
     const completed = status === "FINISHED";
     const cancelled = status === "CANCELLED";
-    const row = create("li", `person-todo-item${completed ? " completed" : ""}${cancelled ? " cancelled" : ""}`);
+    const row = create("li", `person-todo-item editable${completed ? " completed" : ""}${cancelled ? " cancelled" : ""}`);
+    row.tabIndex = 0;
+    row.setAttribute("role", "button");
+    row.setAttribute("aria-label", `Edit status for ${item.content}. Current status: ${formatActionStatus(item.status)}`);
     const checkbox = create("span", "todo-checkbox");
     if (completed) checkbox.append(icon("check"));
     if (cancelled) checkbox.append(icon("close"));
@@ -1028,7 +1074,17 @@ function renderPersonActions(actionItems) {
     meta.append(create("strong", "", item.meeting.title));
     if (item.due_date) meta.append(create("span", "", `Due ${formatDate(item.due_date, false)}`));
     copy.append(meta);
-    row.append(checkbox, copy, create("span", `action-status ${actionStatusClass(item.status)}`, item.status.replaceAll("_", " ")));
+    const statusBadge = create("span", `action-status ${actionStatusClass(item.status)}`);
+    statusBadge.append(document.createTextNode(formatActionStatus(item.status)), icon("edit", "action-status-edit-icon"));
+    row.append(checkbox, copy, statusBadge);
+    const editStatus = () => openPersonActionStatusEditor(item, row);
+    row.addEventListener("click", editStatus);
+    row.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        editStatus();
+      }
+    });
     list.append(row);
   });
   return list;
@@ -1267,7 +1323,7 @@ function renderPersonDetail() {
   const tabs = create("nav", "detail-tabs");
   tabs.setAttribute("aria-label", "Person details");
   tabs.setAttribute("role", "tablist");
-  [["overview", "Overview"], ["meetings", `Meetings (${state.personDetail.meetings.total})`], ["contributions", `Contributions (${state.personDetail.contributions.total})`], ["action-items", `Action items (${state.personDetail.actionItems.total})`]].forEach(([key, label]) => {
+  [["overview", "Overview"], ["meetings", `Meetings (${state.personDetail.meetings.total})`], ["contributions", `Contributions (${state.personDetail.contributions.total})`], ["action-items", `Action items (${state.personDetail.allActionItems.total})`]].forEach(([key, label]) => {
     const tab = create("button", `detail-tab${state.personDetailTab === key ? " active" : ""}`, label);
     tab.type = "button";
     tab.id = `person-tab-${key}`;
@@ -1304,6 +1360,81 @@ function renderPersonDetail() {
   detailBody.setAttribute("aria-labelledby", `person-tab-${state.personDetailTab}`);
   elements.detail.append(header, detailBody);
   renderPersonActiveTab();
+}
+
+function openActionStatusEditor(item, returnFocus, context = {}) {
+  editingActionItem = { item, ...context };
+  actionStatusReturnFocus = returnFocus;
+  elements.actionStatusContent.textContent = item.content;
+  elements.actionStatusMeeting.textContent = context.meetingTitle || item.meeting?.title || "Meeting action item";
+  elements.actionStatusError.classList.add("hidden");
+  elements.actionStatusOptions.replaceChildren();
+
+  PERSON_ACTION_FILTERS.forEach(([value, label]) => {
+    const option = create("label", "action-status-option");
+    const input = create("input");
+    input.type = "radio";
+    input.name = "action-status";
+    input.value = value;
+    input.checked = value === String(item.status).toUpperCase();
+    input.required = true;
+    const control = create("span", "action-status-radio");
+    control.append(create("span"));
+    const copy = create("span", "action-status-option-copy");
+    copy.append(create("strong", "", label), create("small", "", PERSON_ACTION_STATUS_DESCRIPTIONS[value]));
+    option.append(input, control, copy);
+    elements.actionStatusOptions.append(option);
+  });
+
+  elements.actionStatusModal.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  window.setTimeout(() => elements.actionStatusOptions.querySelector("input:checked")?.focus(), 50);
+}
+
+function openPersonActionStatusEditor(item, returnFocus) {
+  openActionStatusEditor(item, returnFocus, {
+    personId: state.selectedPersonId,
+    meetingId: item.meeting.id,
+    meetingTitle: item.meeting.title,
+  });
+}
+
+function closeActionStatusEditor(restoreFocus = true) {
+  elements.actionStatusModal.classList.add("hidden");
+  if (elements.modal.classList.contains("hidden")) document.body.style.overflow = "";
+  if (restoreFocus) actionStatusReturnFocus?.focus();
+  actionStatusReturnFocus = null;
+  editingActionItem = null;
+}
+
+function applyActionItemUpdate(updatedItem, originalItem, context) {
+  const mergedItem = { ...originalItem, ...updatedItem };
+  const previousStatus = String(originalItem.status).toUpperCase();
+  const nextStatus = String(updatedItem.status).toUpperCase();
+  const openDelta = Number(OPEN_ACTION_STATUSES.has(nextStatus)) - Number(OPEN_ACTION_STATUSES.has(previousStatus));
+  const finishedDelta = Number(nextStatus === "FINISHED") - Number(previousStatus === "FINISHED");
+  const meeting = state.meetings.find((item) => item.id === context.meetingId);
+  const meetingAction = meeting?.action_items?.find((item) => item.id === updatedItem.id);
+  if (meetingAction) Object.assign(meetingAction, mergedItem);
+
+  const assigneeId = updatedItem.assignee_id || originalItem.assignee_id || context.personId;
+  const directoryPerson = state.persons.find((person) => person.id === assigneeId);
+  if (directoryPerson) directoryPerson.open_action_item_count += openDelta;
+
+  const personId = state.personDetail?.insight.person.id;
+  const allActionItems = state.personDetail?.allActionItems;
+  const personItem = allActionItems?.items.find((item) => item.id === updatedItem.id);
+  if (personId && personId === assigneeId && personItem) {
+    const personItemUpdate = { ...personItem, ...mergedItem };
+    allActionItems.items = allActionItems.items.map((item) => item.id === updatedItem.id ? personItemUpdate : item);
+    state.personDetail.overviewActionItems = allActionItems.items;
+    state.personDetail.insight.assigned_action_items = state.personDetail.insight.assigned_action_items.map((item) => item.id === updatedItem.id ? personItemUpdate : item);
+    state.personDetail.insight.stats.open_action_item_count += openDelta;
+    state.personDetail.insight.stats.finished_action_item_count += finishedDelta;
+    refreshPersonActions([...state.personActionStatuses]);
+  }
+
+  return mergedItem;
 }
 
 function openModal() {
@@ -1351,6 +1482,9 @@ document.querySelectorAll("[data-open-upload]").forEach((button) => button.addEv
 document.querySelector("#modal-close").addEventListener("click", closeModal);
 document.querySelector("#cancel-button").addEventListener("click", closeModal);
 elements.modal.addEventListener("click", (event) => { if (event.target === elements.modal) closeModal(); });
+document.querySelector("#action-status-close").addEventListener("click", () => closeActionStatusEditor());
+document.querySelector("#action-status-cancel").addEventListener("click", () => closeActionStatusEditor());
+elements.actionStatusModal.addEventListener("click", (event) => { if (event.target === elements.actionStatusModal) closeActionStatusEditor(); });
 elements.workspaceButton.addEventListener("click", () => toggleWorkspaceMenu());
 document.addEventListener("click", (event) => { if (!event.target.closest(".workspace-picker")) toggleWorkspaceMenu(false); });
 
@@ -1377,9 +1511,64 @@ elements.sidebarScrim.addEventListener("click", closeSidebar);
 elements.meetingsNav.addEventListener("click", (event) => { event.preventDefault(); showSection("meetings"); closeSidebar(); });
 elements.personsNav.addEventListener("click", (event) => { event.preventDefault(); showSection("persons"); closeSidebar(); });
 
+elements.actionStatusForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!editingActionItem) return;
+  const status = new FormData(elements.actionStatusForm).get("action-status");
+  if (!status) return;
+
+  const editContext = editingActionItem;
+  const originalItem = editContext.item;
+  const actionItemId = originalItem.id;
+  const params = personRequestParams();
+  const query = params.toString();
+  const endpoint = editContext.personId
+    ? `/persons/${encodeURIComponent(editContext.personId)}/action-items/${encodeURIComponent(actionItemId)}`
+    : `/action-items/${encodeURIComponent(actionItemId)}`;
+  elements.actionStatusError.classList.add("hidden");
+  elements.actionStatusSubmit.disabled = true;
+  elements.actionStatusSubmit.textContent = "Updating…";
+  try {
+    const updatedItem = await request(
+      `${endpoint}${query ? `?${query}` : ""}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      },
+    );
+    applyActionItemUpdate(updatedItem, originalItem, editContext);
+    closeActionStatusEditor(false);
+    renderPersonDirectory();
+    if (editContext.personId && state.selectedPersonId === editContext.personId && state.personDetail) {
+      renderPersonDetail();
+    } else if (state.selectedMeetingId === editContext.meetingId) {
+      renderMeetingList();
+      const meeting = state.meetings.find((item) => item.id === editContext.meetingId);
+      if (meeting) renderActiveTab(meeting);
+    }
+    showToast(`Status updated to ${formatActionStatus(updatedItem.status)}`);
+    window.setTimeout(() => {
+      const activeTab = state.activeSection === "persons" ? state.personDetailTab : state.activeTab;
+      elements.detail.querySelector(`#${state.activeSection === "persons" ? "person" : "meeting"}-tab-${activeTab}`)?.focus();
+    }, 0);
+  } catch (error) {
+    elements.actionStatusError.textContent = error.message;
+    elements.actionStatusError.classList.remove("hidden");
+  } finally {
+    elements.actionStatusSubmit.disabled = false;
+    elements.actionStatusSubmit.textContent = "Update status";
+  }
+});
+
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Tab" && !elements.modal.classList.contains("hidden")) {
-    const focusable = [...elements.modal.querySelectorAll("button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex='-1'])")]
+  const activeModal = !elements.actionStatusModal.classList.contains("hidden")
+    ? elements.actionStatusModal
+    : !elements.modal.classList.contains("hidden")
+      ? elements.modal
+      : null;
+  if (event.key === "Tab" && activeModal) {
+    const focusable = [...activeModal.querySelectorAll("button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex='-1'])")]
       .filter((element) => !element.hidden && element.getClientRects().length);
     if (!focusable.length) return;
     const first = focusable[0];
@@ -1390,7 +1579,8 @@ document.addEventListener("keydown", (event) => {
   }
 
   if (event.key === "Escape") {
-    if (!elements.modal.classList.contains("hidden")) closeModal();
+    if (!elements.actionStatusModal.classList.contains("hidden")) closeActionStatusEditor();
+    else if (!elements.modal.classList.contains("hidden")) closeModal();
     else if (elements.sidebar.classList.contains("open")) closeSidebar();
     else if (elements.shell.classList.contains("detail-view")) {
       if (state.activeSection === "persons") returnFromPersonDetail();

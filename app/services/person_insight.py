@@ -48,6 +48,7 @@ class ActionItemMeetingResponse(TypedDict):
 
 class PersonActionItemResponse(TypedDict):
     id: str
+    assignee_id: str | None
     content: str
     status: str
     due_date: str | None
@@ -225,9 +226,10 @@ def _serialize_meeting_rows(
     ]
 
 
-def _serialize_action_item(item: ActionItem) -> PersonActionItemResponse:
+def serialize_person_action_item(item: ActionItem) -> PersonActionItemResponse:
     return {
         "id": item.id,
+        "assignee_id": item.assignee_id,
         "content": item.content,
         "status": item.status.value,
         "due_date": item.due_date.isoformat() if item.due_date else None,
@@ -438,7 +440,7 @@ def get_person_insight(
             previews_by_meeting,
         ),
         "assigned_action_items": [
-            _serialize_action_item(item) for item in assigned_actions
+            serialize_person_action_item(item) for item in assigned_actions
         ],
     }
 
@@ -598,7 +600,7 @@ def get_person_action_items(
         .all()
     )
     return {
-        "items": [_serialize_action_item(item) for item in action_items],
+        "items": [serialize_person_action_item(item) for item in action_items],
         "total": total,
         "limit": limit,
         "offset": offset,
