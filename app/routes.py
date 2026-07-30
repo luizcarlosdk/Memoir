@@ -2,13 +2,33 @@ import logging
 from datetime import datetime
 from typing import TypedDict
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, selectinload
 
 from app.database.connection import get_db_session
-from app.database.models import ActionItem, Meeting, Person, Transcript, Workspace
+from app.database.models import (
+    ActionItem,
+    ActionItemStatus,
+    Meeting,
+    Person,
+    Transcript,
+    Workspace,
+)
+from app.helpers.person import normalize_person_name
 from app.orchestrator import TranscriptOrchestrator
+from app.services.person_insight import (
+    PersonActionItemPageResponse,
+    PersonContributionPageResponse,
+    PersonDirectoryPageResponse,
+    PersonInsightResponse,
+    PersonMeetingPageResponse,
+    get_person_action_items,
+    get_person_contributions,
+    get_person_insight,
+    get_person_meetings,
+    list_people,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -24,6 +44,7 @@ class TranscriptUpload(BaseModel):
 
 
 class TranscriptResponse(TypedDict):
+    person_id: str | None
     speaker: str
     text: str
     timestamp_start: str | None
@@ -35,6 +56,11 @@ class ActionItemResponse(TypedDict):
     assignee: str | None
     status: str
     due_date: str | None
+
+
+class MeetingParticipantResponse(TypedDict):
+    id: str
+    name: str
 
 
 class MeetingResponse(TypedDict):
@@ -49,6 +75,7 @@ class MeetingResponse(TypedDict):
     decisions: str | None
     created_at: str | None
     participants: list[str]
+    participant_details: list[MeetingParticipantResponse]
     transcript: list[TranscriptResponse]
     action_items: list[ActionItemResponse]
 
@@ -97,10 +124,32 @@ def summarize_meeting(
         new_meeting.summary = meeting_insight.summary
         new_meeting.decisions = meeting_insight.decisions
 
+        people_by_name = {
+            normalize_person_name(person.name): person
+            for person in db.query(Person)
+            .filter(Person.workspace_id == new_meeting.workspace_id)
+            .all()
+        }
+
         for segment in segments:
+            normalized_speaker = normalize_person_name(segment.speaker)
+            person = people_by_name.get(normalized_speaker)
+            if person is None:
+                person = Person(
+                    name=segment.speaker.strip(),
+                    workspace_id=new_meeting.workspace_id,
+                )
+                db.add(person)
+                db.flush()
+                people_by_name[normalized_speaker] = person
+
+            if person not in new_meeting.participants:
+                new_meeting.participants.append(person)
+
             db.add(
                 Transcript(
                     meeting_id=new_meeting.id,
+                    person_id=person.id,
                     speaker=segment.speaker,
                     text=segment.text,
                     timestamp_start=segment.timestamp_start,
@@ -112,14 +161,8 @@ def summarize_meeting(
         for item in meeting_insight.action_items:
             db_assignee_id = None
             if item.responsible_person:
-                person = (
-                    db.query(Person)
-                    .filter(
-                        Person.name == item.responsible_person,
-                        Person.workspace_id == new_meeting.workspace_id,
-                    )
-                    .first()
-                )
+                normalized_assignee = normalize_person_name(item.responsible_person)
+                person = people_by_name.get(normalized_assignee)
                 if person:
                     db_assignee_id = person.id
                 else:
@@ -129,6 +172,7 @@ def summarize_meeting(
                     )
                     db.add(new_assignee)
                     db.flush()
+                    people_by_name[normalized_assignee] = new_assignee
                     db_assignee_id = new_assignee.id
 
             db.add(
@@ -176,8 +220,13 @@ def serialize_meeting(meeting: Meeting) -> MeetingResponse:
         "decisions": meeting.decisions,
         "created_at": meeting.created_at.isoformat() if meeting.created_at else None,
         "participants": [person.name for person in meeting.participants],
+        "participant_details": [
+            {"id": person.id, "name": person.name}
+            for person in meeting.participants
+        ],
         "transcript": [
             {
+                "person_id": segment.person_id,
                 "speaker": segment.speaker,
                 "text": segment.text,
                 "timestamp_start": segment.timestamp_start,
@@ -189,7 +238,7 @@ def serialize_meeting(meeting: Meeting) -> MeetingResponse:
             {
                 "content": item.content,
                 "assignee": item.assignee.name if item.assignee else None,
-                "status": item.status,
+                "status": item.status.value,
                 "due_date": item.due_date.isoformat() if item.due_date else None,
             }
             for item in meeting.action_items
@@ -243,3 +292,106 @@ def list_workspaces(db: Session = Depends(get_db_session)) -> WorkspaceListRespo
         )
         serialized.append({"id": workspace_id, "name": fallback_name})
     return {"workspaces": serialized}
+
+
+@router.get("/persons/{person_id}")
+def retrieve_person_insight(
+    person_id: str,
+    workspace_id: str | None = None,
+    db: Session = Depends(get_db_session),
+) -> PersonInsightResponse:
+    insight = get_person_insight(
+        db,
+        person_id=person_id,
+        workspace_id=workspace_id,
+    )
+    if insight is None:
+        raise HTTPException(status_code=404, detail="Person not found")
+    return insight
+
+
+@router.get("/persons")
+def retrieve_people(
+    workspace_id: str | None = None,
+    query: str | None = Query(default=None, max_length=200),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db_session),
+) -> PersonDirectoryPageResponse:
+    return list_people(
+        db,
+        workspace_id=workspace_id,
+        query_text=query,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/persons/{person_id}/meetings")
+def retrieve_person_meetings(
+    person_id: str,
+    workspace_id: str | None = None,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db_session),
+) -> PersonMeetingPageResponse:
+    result = get_person_meetings(
+        db,
+        person_id=person_id,
+        workspace_id=workspace_id,
+        limit=limit,
+        offset=offset,
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Person not found")
+    return result
+
+
+@router.get("/persons/{person_id}/contributions")
+def retrieve_person_contributions(
+    person_id: str,
+    workspace_id: str | None = None,
+    query: str | None = Query(default=None, max_length=200),
+    meeting_id: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db_session),
+) -> PersonContributionPageResponse:
+    result = get_person_contributions(
+        db,
+        person_id=person_id,
+        workspace_id=workspace_id,
+        query_text=query,
+        meeting_id=meeting_id,
+        date_from=date_from,
+        date_to=date_to,
+        limit=limit,
+        offset=offset,
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Person not found")
+    return result
+
+
+@router.get("/persons/{person_id}/action-items")
+def retrieve_person_action_items(
+    person_id: str,
+    workspace_id: str | None = None,
+    status: ActionItemStatus | None = None,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db_session),
+) -> PersonActionItemPageResponse:
+    result = get_person_action_items(
+        db,
+        person_id=person_id,
+        workspace_id=workspace_id,
+        status=status,
+        limit=limit,
+        offset=offset,
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Person not found")
+    return result
