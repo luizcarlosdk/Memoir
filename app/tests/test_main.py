@@ -103,7 +103,9 @@ def test_frontend_page_is_served(client: TestClient) -> None:
 
     assert response.status_code == 200
     assert "Meetings" in response.text
-    assert "Upload transcript" in response.text
+    assert "New meeting" in response.text
+    assert 'data-open-upload' in response.text
+    assert 'id="upload-title">Upload a transcript</h2>' in response.text
     assert 'id="duration"' in response.text
     assert response.text.count('class="nav-item') == 2
     assert '<span data-icon="calendar"></span><span>Meetings</span>' in response.text
