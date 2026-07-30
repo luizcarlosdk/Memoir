@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 from typing import TypedDict
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, selectinload
 
@@ -93,6 +93,14 @@ class MeetingSummaryResponse(TypedDict):
 
 class ActionItemStatusUpdate(BaseModel):
     status: ActionItemStatus
+
+
+class ActionItemUpdate(BaseModel):
+    """Fields that can be edited from the shared action-item editor."""
+
+    content: str | None = None
+    status: ActionItemStatus | None = None
+    assignee_id: str | None = None
 
 
 class MeetingListResponse(TypedDict):
@@ -456,15 +464,26 @@ def update_person_action_item_status(
 @router.patch("/action-items/{action_item_id}")
 def update_action_item_status(
     action_item_id: str,
-    payload: ActionItemStatusUpdate,
+    payload: ActionItemUpdate,
     workspace_id: str | None = None,
     db: Session = Depends(get_db_session),
 ) -> ActionItemResponse:
-    """Update an action item's status from a Meeting view."""
+    """Edit an action item while keeping it scoped to its workspace."""
+    supplied_fields = payload.model_fields_set
+    if not supplied_fields:
+        raise HTTPException(status_code=422, detail="Choose at least one field to update")
+    if "status" in supplied_fields and payload.status is None:
+        raise HTTPException(status_code=422, detail="Status cannot be empty")
+    if "content" in supplied_fields and not (payload.content or "").strip():
+        raise HTTPException(status_code=422, detail="Action item text cannot be empty")
+
     action_query = (
         db.query(ActionItem)
         .join(Meeting, Meeting.id == ActionItem.meeting_id)
-        .options(selectinload(ActionItem.assignee))
+        .options(
+            selectinload(ActionItem.assignee),
+            selectinload(ActionItem.parent_meeting),
+        )
         .filter(ActionItem.id == action_item_id)
     )
     if workspace_id:
@@ -474,16 +493,67 @@ def update_action_item_status(
     if action_item is None:
         raise HTTPException(status_code=404, detail="Action item not found")
 
-    action_item.status = payload.status
+    if "assignee_id" in supplied_fields:
+        if payload.assignee_id is None:
+            action_item.assignee = None
+        else:
+            assignee = (
+                db.query(Person)
+                .filter(
+                    Person.id == payload.assignee_id,
+                    Person.workspace_id == action_item.parent_meeting.workspace_id,
+                )
+                .first()
+            )
+            if assignee is None:
+                raise HTTPException(status_code=404, detail="Assignee not found")
+            action_item.assignee = assignee
+    if "content" in supplied_fields:
+        action_item.content = (payload.content or "").strip()
+    if "status" in supplied_fields:
+        action_item.status = payload.status
     try:
         db.commit()
         db.refresh(action_item)
     except Exception as exc:
         db.rollback()
-        logger.exception("Failed to update action item status")
+        logger.exception("Failed to update action item")
         raise HTTPException(
             status_code=500,
-            detail="Unable to update the action item status.",
+            detail="Unable to update the action item.",
         ) from exc
 
     return serialize_action_item(action_item)
+
+
+@router.delete("/action-items/{action_item_id}", status_code=204)
+def delete_action_item(
+    action_item_id: str,
+    workspace_id: str | None = None,
+    db: Session = Depends(get_db_session),
+) -> Response:
+    """Permanently delete an action item from a workspace."""
+    action_query = (
+        db.query(ActionItem)
+        .join(Meeting, Meeting.id == ActionItem.meeting_id)
+        .filter(ActionItem.id == action_item_id)
+    )
+    if workspace_id:
+        action_query = action_query.filter(Meeting.workspace_id == workspace_id)
+
+    action_item = action_query.first()
+    if action_item is None:
+        raise HTTPException(status_code=404, detail="Action item not found")
+
+    try:
+        db.delete(action_item)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Failed to delete action item")
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to delete the action item.",
+        ) from exc
+
+    return Response(status_code=204)

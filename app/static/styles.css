@@ -2537,6 +2537,65 @@ a {
   height: 15px;
 }
 
+.action-item-editor-fields {
+  display: grid;
+  gap: 16px;
+  padding: 0 28px 24px;
+}
+
+.action-editor-field {
+  display: grid;
+  gap: 8px;
+}
+
+.action-editor-field > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--md-sys-color-on-surface);
+  font: var(--md-sys-typescale-title-small);
+}
+
+.action-editor-field > span [data-icon] svg {
+  width: 18px;
+  height: 18px;
+  color: var(--md-sys-color-primary);
+}
+
+.action-editor-field textarea,
+.action-editor-field select {
+  width: 100%;
+  border: 1px solid var(--md-sys-color-outline);
+  border-radius: var(--md-sys-shape-small);
+  outline: 0;
+  color: var(--md-sys-color-on-surface);
+  background: var(--md-sys-color-surface-container-high);
+  font: var(--md-sys-typescale-body-large);
+  transition: border-color var(--md-sys-motion-duration-short-2) var(--md-sys-motion-standard), box-shadow var(--md-sys-motion-duration-short-2) var(--md-sys-motion-standard);
+}
+
+.action-editor-field textarea {
+  min-height: 88px;
+  padding: 14px 16px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.action-editor-field select {
+  height: 52px;
+  padding: 0 16px;
+}
+
+.action-editor-field textarea:hover,
+.action-editor-field select:hover {
+  border-color: var(--md-sys-color-on-surface);
+}
+
+.action-editor-field textarea:focus,
+.action-editor-field select:focus {
+  border: 2px solid var(--md-sys-color-primary);
+}
+
 .action-status-editor {
   margin: 0;
   padding: 0 28px 24px;
@@ -2678,12 +2737,109 @@ a {
   font: var(--md-sys-typescale-body-small);
 }
 
-#action-status-submit.updating [data-icon] {
+#action-status-submit.updating [data-icon],
+#action-delete-confirm.updating [data-icon] {
   animation: action-status-spin 900ms linear infinite;
 }
 
 @keyframes action-status-spin {
   to { transform: rotate(360deg); }
+}
+
+.action-delete-confirmation {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 12px;
+  margin: 0 28px 8px;
+  padding: 16px;
+  border-radius: var(--md-sys-shape-large);
+  color: var(--md-sys-color-on-error-container);
+  background: var(--md-sys-color-error-container);
+}
+
+.action-delete-icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: var(--md-sys-shape-full);
+  background: color-mix(in srgb, var(--md-sys-color-error) 12%, transparent);
+}
+
+.action-delete-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.action-delete-copy strong,
+.action-delete-copy span {
+  display: block;
+}
+
+.action-delete-copy strong {
+  font: var(--md-sys-typescale-title-small);
+}
+
+.action-delete-copy span {
+  margin-top: 3px;
+  font: var(--md-sys-typescale-body-small);
+}
+
+.action-delete-actions {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.action-editor-actions {
+  justify-content: space-between;
+}
+
+.action-editor-primary-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.action-delete-button {
+  color: var(--md-sys-color-error);
+}
+
+.action-delete-button:hover {
+  background: color-mix(in srgb, var(--md-sys-color-error) 8%, transparent);
+}
+
+.danger-button {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 20px;
+  border-radius: var(--md-sys-shape-full);
+  color: white;
+  background: var(--md-sys-color-error);
+  font: var(--md-sys-typescale-label-large);
+}
+
+.danger-button:disabled {
+  cursor: wait;
+  opacity: .6;
+}
+
+.confirming-delete .action-editor-actions {
+  display: none;
+}
+
+.action-item-updated {
+  animation: action-item-updated 500ms var(--md-sys-motion-emphasized-decelerate);
+}
+
+@keyframes action-item-updated {
+  from {
+    background: var(--md-sys-color-primary-container);
+    transform: scale(.99);
+  }
 }
 
 .form-grid {
@@ -3141,6 +3297,7 @@ a {
   .modal-header,
   .modal-description,
   .action-status-context,
+  .action-item-editor-fields,
   .action-status-editor,
   .form-grid,
   .modal-actions {
@@ -3151,6 +3308,17 @@ a {
   .form-error {
     margin-right: 20px;
     margin-left: 20px;
+  }
+
+  .action-delete-confirmation {
+    margin-right: 20px;
+    margin-left: 20px;
+  }
+
+  .action-editor-actions,
+  .action-editor-primary-actions,
+  .action-delete-actions {
+    flex-wrap: wrap;
   }
 
   .modal-file-zone {

@@ -112,6 +112,9 @@ def test_frontend_page_is_served(client: TestClient) -> None:
     assert 'id="person-open-actions-filter"' in response.text
     assert 'id="person-sort"' in response.text
     assert 'id="action-status-backdrop"' in response.text
+    assert 'id="action-item-content"' in response.text
+    assert 'id="action-assignee-select"' in response.text
+    assert 'id="action-delete-confirm"' in response.text
 
     script = client.get("/app.js")
     assert script.status_code == 200
@@ -122,6 +125,8 @@ def test_frontend_page_is_served(client: TestClient) -> None:
     assert "openActionStatusEditor(item, row" in script.text
     assert "/action-items/${encodeURIComponent(actionItemId)}" in script.text
     assert 'method: "PATCH"' in script.text
+    assert 'method: "DELETE"' in script.text
+    assert "syncMeetingActionCard(meeting, mergedItem)" in script.text
     assert "showAllMeetings: false" in script.text
     assert "setAllMeetingsExpanded(!state.showAllMeetings)" in script.text
     assert 'PENDING: "clock"' in script.text
@@ -316,21 +321,30 @@ def test_plural_person_routes_are_documented(client: TestClient) -> None:
     assert "/persons/{person_id}/action-items" in paths
     assert "/persons/{person_id}/action-items/{action_item_id}" in paths
     assert "/action-items/{action_item_id}" in paths
+    assert "delete" in paths["/action-items/{action_item_id}"]
     assert "/person/{person_id}" not in paths
 
 
-def test_update_action_item_status_routes(
+def test_update_and_delete_action_item_routes(
     db_session_factory: sessionmaker[Session],
 ) -> None:
     session = db_session_factory()
     try:
         person = Person(name="Ana", workspace_id=TEST_WORKSPACE_ID)
+        reassignee = Person(name="Carlos", workspace_id=TEST_WORKSPACE_ID)
+        owner = session.query(User).one()
+        other_workspace = Workspace(
+            id="other-workspace",
+            name="Other workspace",
+            user_id=owner.id,
+        )
+        outsider = Person(name="Outsider", workspace_id=other_workspace.id)
         meeting = Meeting(
             title="Release planning",
             workspace_id=TEST_WORKSPACE_ID,
             participants=[person],
         )
-        session.add_all([person, meeting])
+        session.add_all([person, reassignee, other_workspace, outsider, meeting])
         session.flush()
         action_item = ActionItem(
             meeting_id=meeting.id,
@@ -380,7 +394,7 @@ def test_update_action_item_status_routes(
         with pytest.raises(HTTPException) as exc_info:
             routes.update_action_item_status(
                 action_item_id=action_item_id,
-                payload=routes.ActionItemStatusUpdate(
+                payload=routes.ActionItemUpdate(
                     status=ActionItemStatus.FINISHED
                 ),
                 workspace_id="another-workspace",
@@ -390,20 +404,40 @@ def test_update_action_item_status_routes(
 
         meeting_response = routes.update_action_item_status(
             action_item_id=action_item_id,
-            payload=routes.ActionItemStatusUpdate(
-                status=ActionItemStatus.FINISHED
+            payload=routes.ActionItemUpdate(
+                content="Publish polished release notes.",
+                status=ActionItemStatus.FINISHED,
+                assignee_id=reassignee.id,
             ),
             workspace_id=TEST_WORKSPACE_ID,
             db=session,
         )
         assert meeting_response == {
             "id": action_item_id,
-            "assignee_id": person_id,
-            "content": "Prepare release notes.",
-            "assignee": "Ana",
+            "assignee_id": reassignee.id,
+            "content": "Publish polished release notes.",
+            "assignee": "Carlos",
             "status": "FINISHED",
             "due_date": None,
         }
+
+        with pytest.raises(HTTPException) as exc_info:
+            routes.update_action_item_status(
+                action_item_id=action_item_id,
+                payload=routes.ActionItemUpdate(assignee_id=outsider.id),
+                workspace_id=TEST_WORKSPACE_ID,
+                db=session,
+            )
+        assert exc_info.value.status_code == 404
+
+        unassigned_response = routes.update_action_item_status(
+            action_item_id=action_item_id,
+            payload=routes.ActionItemUpdate(assignee_id=None),
+            workspace_id=TEST_WORKSPACE_ID,
+            db=session,
+        )
+        assert unassigned_response["assignee_id"] is None
+        assert unassigned_response["assignee"] is None
 
         unassigned_action = ActionItem(
             meeting_id=meeting_id,
@@ -413,7 +447,7 @@ def test_update_action_item_status_routes(
         session.commit()
         unassigned_response = routes.update_action_item_status(
             action_item_id=unassigned_action.id,
-            payload=routes.ActionItemStatusUpdate(
+            payload=routes.ActionItemUpdate(
                 status=ActionItemStatus.BLOCKED
             ),
             workspace_id=TEST_WORKSPACE_ID,
@@ -422,6 +456,22 @@ def test_update_action_item_status_routes(
         assert unassigned_response["assignee_id"] is None
         assert unassigned_response["assignee"] is None
         assert unassigned_response["status"] == "BLOCKED"
+
+        with pytest.raises(HTTPException) as exc_info:
+            routes.delete_action_item(
+                action_item_id=unassigned_action.id,
+                workspace_id="other-workspace",
+                db=session,
+            )
+        assert exc_info.value.status_code == 404
+
+        delete_response = routes.delete_action_item(
+            action_item_id=unassigned_action.id,
+            workspace_id=TEST_WORKSPACE_ID,
+            db=session,
+        )
+        assert delete_response.status_code == 204
+        assert session.get(ActionItem, unassigned_action.id) is None
     finally:
         session.close()
 

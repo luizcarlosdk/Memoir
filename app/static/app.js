@@ -16,6 +16,7 @@ const ICONS = {
   panel: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M14 4v16M7 8h3M7 12h3"/></svg>',
   more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1" fill="currentColor" stroke="none"/></svg>',
   edit: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10.6-10.6a2 2 0 0 0-2.8-2.8L5.4 16.2 4 20Z"/><path d="m14.8 6.8 2.8 2.8"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6"/></svg>',
   progress: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 6.7M20 4v7h-7"/></svg>',
   blocked: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m6 18 12-12"/></svg>',
 };
@@ -111,10 +112,16 @@ const elements = {
   actionStatusModal: document.querySelector("#action-status-backdrop"),
   actionStatusForm: document.querySelector("#action-status-form"),
   actionStatusContent: document.querySelector("#action-status-content"),
+  actionItemContent: document.querySelector("#action-item-content"),
+  actionAssigneeSelect: document.querySelector("#action-assignee-select"),
   actionStatusMeeting: document.querySelector("#action-status-meeting"),
   actionStatusOptions: document.querySelector("#action-status-options"),
   actionStatusError: document.querySelector("#action-status-error"),
   actionStatusSubmit: document.querySelector("#action-status-submit"),
+  actionDeleteButton: document.querySelector("#action-delete-button"),
+  actionDeleteConfirmation: document.querySelector("#action-delete-confirmation"),
+  actionDeleteKeep: document.querySelector("#action-delete-keep"),
+  actionDeleteConfirm: document.querySelector("#action-delete-confirm"),
   sidebar: document.querySelector("#sidebar"),
   sidebarScrim: document.querySelector("#sidebar-scrim"),
   toast: document.querySelector("#toast"),
@@ -661,46 +668,49 @@ function renderDecisionList(meeting) {
   return list;
 }
 
+function createMeetingActionItem(item, meeting) {
+  const status = String(item.status).toUpperCase();
+  const done = status === "FINISHED";
+  const cancelled = status === "CANCELLED";
+  const row = create("li", `action-item editable${done ? " done" : ""}${cancelled ? " cancelled" : ""}`);
+  row.dataset.actionItemId = item.id;
+  row.tabIndex = 0;
+  row.setAttribute("role", "button");
+  row.setAttribute("aria-label", `Edit ${item.content}. Current status: ${formatActionStatus(item.status)}`);
+  const check = create("span", "action-check");
+  if (done) check.append(icon("check"));
+  if (cancelled) check.append(icon("close"));
+  const content = create("div");
+  content.append(create("div", "action-content", item.content));
+  const meta = create("div", "action-meta");
+  if (item.assignee) meta.append(create("span", "action-assignee", item.assignee));
+  if (item.due_date) { const due = create("span"); due.append(icon("calendar"), document.createTextNode(formatDate(item.due_date, false))); meta.append(due); }
+  const statusBadge = create("span", `action-status ${actionStatusClass(item.status)}`);
+  statusBadge.append(document.createTextNode(formatActionStatus(item.status)), icon("edit", "action-status-edit-icon"));
+  meta.append(statusBadge);
+  content.append(meta);
+  row.append(check, content);
+  const editItem = () => openActionStatusEditor(item, row, {
+    meetingId: meeting.id,
+    meetingTitle: meeting.title || "Untitled meeting",
+  });
+  row.addEventListener("click", editItem);
+  row.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      editItem();
+    }
+  });
+  return row;
+}
+
 function renderActionList(meeting) {
   const list = create("ul", "action-list");
   if (!meeting.action_items?.length) {
     list.append(create("li", "muted-list-item", "No action items were identified."));
     return list;
   }
-  meeting.action_items.forEach((item) => {
-    const status = String(item.status).toUpperCase();
-    const done = status === "FINISHED";
-    const cancelled = status === "CANCELLED";
-    const row = create("li", `action-item editable${done ? " done" : ""}${cancelled ? " cancelled" : ""}`);
-    row.tabIndex = 0;
-    row.setAttribute("role", "button");
-    row.setAttribute("aria-label", `Edit status for ${item.content}. Current status: ${formatActionStatus(item.status)}`);
-    const check = create("span", "action-check");
-    if (done) check.append(icon("check"));
-    if (cancelled) check.append(icon("close"));
-    const content = create("div");
-    content.append(create("div", "action-content", item.content));
-    const meta = create("div", "action-meta");
-    if (item.assignee) meta.append(create("span", "action-assignee", item.assignee));
-    if (item.due_date) { const due = create("span"); due.append(icon("calendar"), document.createTextNode(formatDate(item.due_date, false))); meta.append(due); }
-    const statusBadge = create("span", `action-status ${actionStatusClass(item.status)}`);
-    statusBadge.append(document.createTextNode(formatActionStatus(item.status)), icon("edit", "action-status-edit-icon"));
-    meta.append(statusBadge);
-    content.append(meta);
-    row.append(check, content);
-    const editStatus = () => openActionStatusEditor(item, row, {
-      meetingId: meeting.id,
-      meetingTitle: meeting.title || "Untitled meeting",
-    });
-    row.addEventListener("click", editStatus);
-    row.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        editStatus();
-      }
-    });
-    list.append(row);
-  });
+  meeting.action_items.forEach((item) => list.append(createMeetingActionItem(item, meeting)));
   return list;
 }
 
@@ -1085,39 +1095,42 @@ function actionStatusClass(status) {
   return "";
 }
 
+function createPersonActionItem(item) {
+  const status = String(item.status).toUpperCase();
+  const completed = status === "FINISHED";
+  const cancelled = status === "CANCELLED";
+  const row = create("li", `person-todo-item editable${completed ? " completed" : ""}${cancelled ? " cancelled" : ""}`);
+  row.dataset.actionItemId = item.id;
+  row.tabIndex = 0;
+  row.setAttribute("role", "button");
+  row.setAttribute("aria-label", `Edit ${item.content}. Current status: ${formatActionStatus(item.status)}`);
+  const checkbox = create("span", "todo-checkbox");
+  if (completed) checkbox.append(icon("check"));
+  if (cancelled) checkbox.append(icon("close"));
+  const copy = create("div", "todo-copy");
+  copy.append(create("p", "todo-title", item.content));
+  const meta = create("div", "person-action-meta");
+  meta.append(create("strong", "", item.meeting.title));
+  if (item.due_date) meta.append(create("span", "", `Due ${formatDate(item.due_date, false)}`));
+  copy.append(meta);
+  const statusBadge = create("span", `action-status ${actionStatusClass(item.status)}`);
+  statusBadge.append(document.createTextNode(formatActionStatus(item.status)), icon("edit", "action-status-edit-icon"));
+  row.append(checkbox, copy, statusBadge);
+  const editItem = () => openPersonActionStatusEditor(item, row);
+  row.addEventListener("click", editItem);
+  row.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      editItem();
+    }
+  });
+  return row;
+}
+
 function renderPersonActions(actionItems) {
   if (!actionItems.length) return create("p", "tab-empty", "No matching action items are assigned to this person.");
   const list = create("ul", "person-todo-list");
-  actionItems.forEach((item) => {
-    const status = String(item.status).toUpperCase();
-    const completed = status === "FINISHED";
-    const cancelled = status === "CANCELLED";
-    const row = create("li", `person-todo-item editable${completed ? " completed" : ""}${cancelled ? " cancelled" : ""}`);
-    row.tabIndex = 0;
-    row.setAttribute("role", "button");
-    row.setAttribute("aria-label", `Edit status for ${item.content}. Current status: ${formatActionStatus(item.status)}`);
-    const checkbox = create("span", "todo-checkbox");
-    if (completed) checkbox.append(icon("check"));
-    if (cancelled) checkbox.append(icon("close"));
-    const copy = create("div", "todo-copy");
-    copy.append(create("p", "todo-title", item.content));
-    const meta = create("div", "person-action-meta");
-    meta.append(create("strong", "", item.meeting.title));
-    if (item.due_date) meta.append(create("span", "", `Due ${formatDate(item.due_date, false)}`));
-    copy.append(meta);
-    const statusBadge = create("span", `action-status ${actionStatusClass(item.status)}`);
-    statusBadge.append(document.createTextNode(formatActionStatus(item.status)), icon("edit", "action-status-edit-icon"));
-    row.append(checkbox, copy, statusBadge);
-    const editStatus = () => openPersonActionStatusEditor(item, row);
-    row.addEventListener("click", editStatus);
-    row.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        editStatus();
-      }
-    });
-    list.append(row);
-  });
+  actionItems.forEach((item) => list.append(createPersonActionItem(item)));
   return list;
 }
 
@@ -1397,12 +1410,28 @@ function openActionStatusEditor(item, returnFocus, context = {}) {
   editingActionItem = { item, ...context };
   actionStatusReturnFocus = returnFocus;
   elements.actionStatusContent.textContent = item.content;
+  elements.actionItemContent.value = item.content;
   elements.actionStatusMeeting.replaceChildren(
     icon("calendar"),
     document.createTextNode(context.meetingTitle || item.meeting?.title || "Meeting action item"),
   );
+  elements.actionAssigneeSelect.replaceChildren();
+  const unassigned = create("option", "", "Unassigned");
+  unassigned.value = "";
+  elements.actionAssigneeSelect.append(unassigned);
+  const people = [...state.persons].sort((first, second) => first.name.localeCompare(second.name));
+  if (item.assignee_id && !people.some((person) => person.id === item.assignee_id)) {
+    people.push({ id: item.assignee_id, name: item.assignee || "Current assignee" });
+  }
+  people.forEach((person) => {
+    const option = create("option", "", person.name);
+    option.value = person.id;
+    elements.actionAssigneeSelect.append(option);
+  });
+  elements.actionAssigneeSelect.value = item.assignee_id || "";
   elements.actionStatusError.classList.add("hidden");
   elements.actionStatusOptions.replaceChildren();
+  setActionDeleteConfirmation(false);
 
   PERSON_ACTION_FILTERS.forEach(([value, label]) => {
     const option = create("label", `action-status-option status-${value.toLocaleLowerCase().replaceAll("_", "-")}`);
@@ -1423,7 +1452,7 @@ function openActionStatusEditor(item, returnFocus, context = {}) {
 
   elements.actionStatusModal.classList.remove("hidden");
   document.body.style.overflow = "hidden";
-  window.setTimeout(() => elements.actionStatusOptions.querySelector("input:checked")?.focus(), 50);
+  window.setTimeout(() => elements.actionItemContent.focus(), 50);
 }
 
 function openPersonActionStatusEditor(item, returnFocus) {
@@ -1436,33 +1465,61 @@ function openPersonActionStatusEditor(item, returnFocus) {
 
 function closeActionStatusEditor(restoreFocus = true) {
   elements.actionStatusModal.classList.add("hidden");
+  setActionDeleteConfirmation(false);
   if (elements.modal.classList.contains("hidden")) document.body.style.overflow = "";
   if (restoreFocus) actionStatusReturnFocus?.focus();
   actionStatusReturnFocus = null;
   editingActionItem = null;
 }
 
+function setActionDeleteConfirmation(visible) {
+  elements.actionDeleteConfirmation.classList.toggle("hidden", !visible);
+  elements.actionStatusForm.classList.toggle("confirming-delete", visible);
+  if (visible) window.setTimeout(() => elements.actionDeleteKeep.focus(), 0);
+}
+
+function adjustDirectoryOpenActions(personId, delta) {
+  if (!personId || !delta) return;
+  const person = state.persons.find((item) => item.id === personId);
+  if (person) person.open_action_item_count = Math.max(0, person.open_action_item_count + delta);
+}
+
 function applyActionItemUpdate(updatedItem, originalItem, context) {
   const mergedItem = { ...originalItem, ...updatedItem };
   const previousStatus = String(originalItem.status).toUpperCase();
   const nextStatus = String(updatedItem.status).toUpperCase();
-  const openDelta = Number(OPEN_ACTION_STATUSES.has(nextStatus)) - Number(OPEN_ACTION_STATUSES.has(previousStatus));
+  const wasOpen = OPEN_ACTION_STATUSES.has(previousStatus);
+  const isOpen = OPEN_ACTION_STATUSES.has(nextStatus);
+  const openDelta = Number(isOpen) - Number(wasOpen);
   const finishedDelta = Number(nextStatus === "FINISHED") - Number(previousStatus === "FINISHED");
+  const previousAssigneeId = originalItem.assignee_id || context.personId || null;
+  const nextAssigneeId = updatedItem.assignee_id || null;
   const meeting = state.meetings.find((item) => item.id === context.meetingId);
   const meetingAction = meeting?.action_items?.find((item) => item.id === updatedItem.id);
   if (meetingAction) Object.assign(meetingAction, mergedItem);
 
-  const assigneeId = updatedItem.assignee_id || originalItem.assignee_id || context.personId;
-  const directoryPerson = state.persons.find((person) => person.id === assigneeId);
-  if (directoryPerson) directoryPerson.open_action_item_count += openDelta;
+  if (previousAssigneeId === nextAssigneeId) {
+    adjustDirectoryOpenActions(nextAssigneeId, openDelta);
+  } else {
+    adjustDirectoryOpenActions(previousAssigneeId, wasOpen ? -1 : 0);
+    adjustDirectoryOpenActions(nextAssigneeId, isOpen ? 1 : 0);
+  }
 
   const personId = state.personDetail?.insight.person.id;
   const allActionItems = state.personDetail?.allActionItems;
   const personItem = allActionItems?.items.find((item) => item.id === updatedItem.id);
-  if (personId && personId === assigneeId && personItem) {
+  if (personId && personId === previousAssigneeId && personItem && previousAssigneeId !== nextAssigneeId) {
+    allActionItems.items = allActionItems.items.filter((item) => item.id !== updatedItem.id);
+    allActionItems.total = Math.max(0, allActionItems.total - 1);
+    state.personDetail.overviewActionItems = state.personDetail.overviewActionItems.filter((item) => item.id !== updatedItem.id);
+    state.personDetail.insight.assigned_action_items = state.personDetail.insight.assigned_action_items.filter((item) => item.id !== updatedItem.id);
+    state.personDetail.insight.stats.open_action_item_count = Math.max(0, state.personDetail.insight.stats.open_action_item_count - Number(wasOpen));
+    state.personDetail.insight.stats.finished_action_item_count = Math.max(0, state.personDetail.insight.stats.finished_action_item_count - Number(previousStatus === "FINISHED"));
+    refreshPersonActions([...state.personActionStatuses]);
+  } else if (personId && personId === nextAssigneeId && personItem) {
     const personItemUpdate = { ...personItem, ...mergedItem };
     allActionItems.items = allActionItems.items.map((item) => item.id === updatedItem.id ? personItemUpdate : item);
-    state.personDetail.overviewActionItems = allActionItems.items;
+    state.personDetail.overviewActionItems = state.personDetail.overviewActionItems.map((item) => item.id === updatedItem.id ? personItemUpdate : item);
     state.personDetail.insight.assigned_action_items = state.personDetail.insight.assigned_action_items.map((item) => item.id === updatedItem.id ? personItemUpdate : item);
     state.personDetail.insight.stats.open_action_item_count += openDelta;
     state.personDetail.insight.stats.finished_action_item_count += finishedDelta;
@@ -1470,6 +1527,68 @@ function applyActionItemUpdate(updatedItem, originalItem, context) {
   }
 
   return mergedItem;
+}
+
+function applyActionItemDeletion(originalItem, context) {
+  const status = String(originalItem.status).toUpperCase();
+  const assigneeId = originalItem.assignee_id || context.personId || null;
+  const meeting = state.meetings.find((item) => item.id === context.meetingId);
+  if (meeting) meeting.action_items = meeting.action_items.filter((item) => item.id !== originalItem.id);
+  adjustDirectoryOpenActions(assigneeId, OPEN_ACTION_STATUSES.has(status) ? -1 : 0);
+
+  const personId = state.personDetail?.insight.person.id;
+  const allActionItems = state.personDetail?.allActionItems;
+  if (personId === assigneeId && allActionItems?.items.some((item) => item.id === originalItem.id)) {
+    allActionItems.items = allActionItems.items.filter((item) => item.id !== originalItem.id);
+    allActionItems.total = Math.max(0, allActionItems.total - 1);
+    state.personDetail.overviewActionItems = state.personDetail.overviewActionItems.filter((item) => item.id !== originalItem.id);
+    state.personDetail.insight.assigned_action_items = state.personDetail.insight.assigned_action_items.filter((item) => item.id !== originalItem.id);
+    state.personDetail.insight.stats.open_action_item_count = Math.max(0, state.personDetail.insight.stats.open_action_item_count - Number(OPEN_ACTION_STATUSES.has(status)));
+    state.personDetail.insight.stats.finished_action_item_count = Math.max(0, state.personDetail.insight.stats.finished_action_item_count - Number(status === "FINISHED"));
+    refreshPersonActions([...state.personActionStatuses]);
+  }
+}
+
+function syncMeetingActionCard(meeting, actionItem, deleted = false) {
+  const row = [...elements.detail.querySelectorAll("[data-action-item-id]")]
+    .find((element) => element.dataset.actionItemId === actionItem.id);
+  if (!row) return null;
+  const list = row.parentElement;
+  const card = row.closest(".insight-card");
+  let replacement = null;
+  if (deleted) row.remove();
+  else {
+    replacement = createMeetingActionItem(actionItem, meeting);
+    replacement.classList.add("action-item-updated");
+    row.replaceWith(replacement);
+  }
+  if (!list.querySelector("[data-action-item-id]")) {
+    list.append(create("li", "muted-list-item", "No action items were identified."));
+  }
+
+  const openActionCount = openActions(meeting).length;
+  const overdueCount = overdueActionCount(meeting);
+  let count = card.querySelector(".insight-count");
+  if (!openActionCount) {
+    count?.remove();
+    card.classList.remove("has-count");
+    return replacement;
+  }
+  if (!count) {
+    count = create("span", "insight-count");
+    card.append(count);
+  }
+  count.textContent = `${openActionCount} open ${openActionCount === 1 ? "action" : "actions"}${overdueCount ? ` · ${overdueCount} overdue` : ""}`;
+  card.classList.add("has-count");
+  return replacement;
+}
+
+function renderPersonDetailAtCurrentPosition() {
+  const scrollLeft = window.scrollX;
+  const scrollTop = window.scrollY;
+  renderPersonDetail();
+  window.scrollTo(scrollLeft, scrollTop);
+  elements.detail.querySelector(`#person-tab-${state.personDetailTab}`)?.focus({ preventScroll: true });
 }
 
 function openModal() {
@@ -1519,6 +1638,8 @@ document.querySelector("#cancel-button").addEventListener("click", closeModal);
 elements.modal.addEventListener("click", (event) => { if (event.target === elements.modal) closeModal(); });
 document.querySelector("#action-status-close").addEventListener("click", () => closeActionStatusEditor());
 document.querySelector("#action-status-cancel").addEventListener("click", () => closeActionStatusEditor());
+elements.actionDeleteButton.addEventListener("click", () => setActionDeleteConfirmation(true));
+elements.actionDeleteKeep.addEventListener("click", () => setActionDeleteConfirmation(false));
 elements.actionStatusModal.addEventListener("click", (event) => { if (event.target === elements.actionStatusModal) closeActionStatusEditor(); });
 elements.workspaceButton.addEventListener("click", () => toggleWorkspaceMenu());
 document.addEventListener("click", (event) => { if (!event.target.closest(".workspace-picker")) toggleWorkspaceMenu(false); });
@@ -1548,53 +1669,102 @@ elements.personsNav.addEventListener("click", (event) => { event.preventDefault(
 
 elements.actionStatusForm.addEventListener("submit", async (event) => {
   event.preventDefault();
+  if (elements.actionStatusForm.classList.contains("confirming-delete")) return;
   if (!editingActionItem) return;
-  const status = new FormData(elements.actionStatusForm).get("action-status");
+  const formData = new FormData(elements.actionStatusForm);
+  const status = formData.get("action-status");
+  const content = elements.actionItemContent.value.trim();
   if (!status) return;
+  if (!content) {
+    elements.actionStatusError.textContent = "Action item text cannot be empty.";
+    elements.actionStatusError.classList.remove("hidden");
+    elements.actionItemContent.focus();
+    return;
+  }
 
   const editContext = editingActionItem;
   const originalItem = editContext.item;
   const actionItemId = originalItem.id;
   const params = personRequestParams();
   const query = params.toString();
-  const endpoint = editContext.personId
-    ? `/persons/${encodeURIComponent(editContext.personId)}/action-items/${encodeURIComponent(actionItemId)}`
-    : `/action-items/${encodeURIComponent(actionItemId)}`;
+  const endpoint = `/action-items/${encodeURIComponent(actionItemId)}`;
   elements.actionStatusError.classList.add("hidden");
   elements.actionStatusSubmit.disabled = true;
   elements.actionStatusSubmit.classList.add("updating");
-  elements.actionStatusSubmit.replaceChildren(icon("progress"), document.createTextNode("Updating…"));
+  elements.actionStatusSubmit.replaceChildren(icon("progress"), document.createTextNode("Saving…"));
   try {
     const updatedItem = await request(
       `${endpoint}${query ? `?${query}` : ""}`,
       {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({
+          content,
+          status,
+          assignee_id: elements.actionAssigneeSelect.value || null,
+        }),
       },
     );
-    applyActionItemUpdate(updatedItem, originalItem, editContext);
+    const mergedItem = applyActionItemUpdate(updatedItem, originalItem, editContext);
+    const meeting = state.meetings.find((item) => item.id === editContext.meetingId);
+    const scrollLeft = window.scrollX;
+    const scrollTop = window.scrollY;
     closeActionStatusEditor(false);
     renderPersonDirectory();
     if (editContext.personId && state.selectedPersonId === editContext.personId && state.personDetail) {
-      renderPersonDetail();
-    } else if (state.selectedMeetingId === editContext.meetingId) {
-      renderMeetingList();
-      const meeting = state.meetings.find((item) => item.id === editContext.meetingId);
-      if (meeting) renderActiveTab(meeting);
+      renderPersonDetailAtCurrentPosition();
+    } else if (meeting && state.selectedMeetingId === editContext.meetingId) {
+      const updatedRow = syncMeetingActionCard(meeting, mergedItem);
+      window.scrollTo(scrollLeft, scrollTop);
+      updatedRow?.focus({ preventScroll: true });
     }
-    showToast(`Status updated to ${formatActionStatus(updatedItem.status)}`);
-    window.setTimeout(() => {
-      const activeTab = state.activeSection === "persons" ? state.personDetailTab : state.activeTab;
-      elements.detail.querySelector(`#${state.activeSection === "persons" ? "person" : "meeting"}-tab-${activeTab}`)?.focus();
-    }, 0);
+    showToast("Action item updated");
   } catch (error) {
     elements.actionStatusError.textContent = error.message;
     elements.actionStatusError.classList.remove("hidden");
   } finally {
     elements.actionStatusSubmit.disabled = false;
     elements.actionStatusSubmit.classList.remove("updating");
-    elements.actionStatusSubmit.replaceChildren(icon("check"), document.createTextNode("Update status"));
+    elements.actionStatusSubmit.replaceChildren(icon("check"), document.createTextNode("Save changes"));
+  }
+});
+
+elements.actionDeleteConfirm.addEventListener("click", async () => {
+  if (!editingActionItem) return;
+  const editContext = editingActionItem;
+  const originalItem = editContext.item;
+  const params = personRequestParams();
+  const query = params.toString();
+  elements.actionStatusError.classList.add("hidden");
+  elements.actionDeleteConfirm.disabled = true;
+  elements.actionDeleteConfirm.classList.add("updating");
+  elements.actionDeleteConfirm.replaceChildren(icon("progress"), document.createTextNode("Deleting…"));
+  try {
+    await request(
+      `/action-items/${encodeURIComponent(originalItem.id)}${query ? `?${query}` : ""}`,
+      { method: "DELETE" },
+    );
+    const meeting = state.meetings.find((item) => item.id === editContext.meetingId);
+    const scrollLeft = window.scrollX;
+    const scrollTop = window.scrollY;
+    applyActionItemDeletion(originalItem, editContext);
+    closeActionStatusEditor(false);
+    renderPersonDirectory();
+    if (editContext.personId && state.selectedPersonId === editContext.personId && state.personDetail) {
+      renderPersonDetailAtCurrentPosition();
+    } else if (meeting && state.selectedMeetingId === editContext.meetingId) {
+      syncMeetingActionCard(meeting, originalItem, true);
+      window.scrollTo(scrollLeft, scrollTop);
+      elements.detail.querySelector(`#meeting-tab-${state.activeTab}`)?.focus({ preventScroll: true });
+    }
+    showToast("Action item deleted");
+  } catch (error) {
+    elements.actionStatusError.textContent = error.message;
+    elements.actionStatusError.classList.remove("hidden");
+  } finally {
+    elements.actionDeleteConfirm.disabled = false;
+    elements.actionDeleteConfirm.classList.remove("updating");
+    elements.actionDeleteConfirm.replaceChildren(icon("trash"), document.createTextNode("Delete permanently"));
   }
 });
 
