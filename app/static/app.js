@@ -16,6 +16,8 @@ const ICONS = {
   panel: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M14 4v16M7 8h3M7 12h3"/></svg>',
   more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1" fill="currentColor" stroke="none"/></svg>',
   edit: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10.6-10.6a2 2 0 0 0-2.8-2.8L5.4 16.2 4 20Z"/><path d="m14.8 6.8 2.8 2.8"/></svg>',
+  progress: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 6.7M20 4v7h-7"/></svg>',
+  blocked: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m6 18 12-12"/></svg>',
 };
 
 const state = {
@@ -62,6 +64,13 @@ const PERSON_ACTION_STATUS_DESCRIPTIONS = Object.freeze({
   BLOCKED: "Waiting on something else",
   FINISHED: "Completed successfully",
   CANCELLED: "No longer planned",
+});
+const ACTION_STATUS_ICONS = Object.freeze({
+  PENDING: "clock",
+  IN_PROGRESS: "progress",
+  BLOCKED: "blocked",
+  FINISHED: "check",
+  CANCELLED: "close",
 });
 const OPEN_ACTION_STATUSES = new Set(["PENDING", "IN_PROGRESS", "BLOCKED"]);
 let tabTransitionVersion = 0;
@@ -1388,12 +1397,15 @@ function openActionStatusEditor(item, returnFocus, context = {}) {
   editingActionItem = { item, ...context };
   actionStatusReturnFocus = returnFocus;
   elements.actionStatusContent.textContent = item.content;
-  elements.actionStatusMeeting.textContent = context.meetingTitle || item.meeting?.title || "Meeting action item";
+  elements.actionStatusMeeting.replaceChildren(
+    icon("calendar"),
+    document.createTextNode(context.meetingTitle || item.meeting?.title || "Meeting action item"),
+  );
   elements.actionStatusError.classList.add("hidden");
   elements.actionStatusOptions.replaceChildren();
 
   PERSON_ACTION_FILTERS.forEach(([value, label]) => {
-    const option = create("label", "action-status-option");
+    const option = create("label", `action-status-option status-${value.toLocaleLowerCase().replaceAll("_", "-")}`);
     const input = create("input");
     input.type = "radio";
     input.name = "action-status";
@@ -1402,9 +1414,10 @@ function openActionStatusEditor(item, returnFocus, context = {}) {
     input.required = true;
     const control = create("span", "action-status-radio");
     control.append(create("span"));
+    const statusIcon = icon(ACTION_STATUS_ICONS[value], "action-status-option-icon");
     const copy = create("span", "action-status-option-copy");
     copy.append(create("strong", "", label), create("small", "", PERSON_ACTION_STATUS_DESCRIPTIONS[value]));
-    option.append(input, control, copy);
+    option.append(input, control, statusIcon, copy);
     elements.actionStatusOptions.append(option);
   });
 
@@ -1549,7 +1562,8 @@ elements.actionStatusForm.addEventListener("submit", async (event) => {
     : `/action-items/${encodeURIComponent(actionItemId)}`;
   elements.actionStatusError.classList.add("hidden");
   elements.actionStatusSubmit.disabled = true;
-  elements.actionStatusSubmit.textContent = "Updating…";
+  elements.actionStatusSubmit.classList.add("updating");
+  elements.actionStatusSubmit.replaceChildren(icon("progress"), document.createTextNode("Updating…"));
   try {
     const updatedItem = await request(
       `${endpoint}${query ? `?${query}` : ""}`,
@@ -1579,7 +1593,8 @@ elements.actionStatusForm.addEventListener("submit", async (event) => {
     elements.actionStatusError.classList.remove("hidden");
   } finally {
     elements.actionStatusSubmit.disabled = false;
-    elements.actionStatusSubmit.textContent = "Update status";
+    elements.actionStatusSubmit.classList.remove("updating");
+    elements.actionStatusSubmit.replaceChildren(icon("check"), document.createTextNode("Update status"));
   }
 });
 

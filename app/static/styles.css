@@ -2493,6 +2493,18 @@ a {
   letter-spacing: -.025em;
 }
 
+.action-status-overline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.action-status-overline [data-icon] svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2;
+}
+
 .modal-description {
   margin: 0;
   padding: 0 28px;
@@ -2511,11 +2523,18 @@ a {
   font: var(--md-sys-typescale-body-large);
 }
 
-.action-status-context span {
-  display: block;
+.action-status-meeting {
+  display: flex;
   margin-top: 6px;
+  align-items: center;
+  gap: 7px;
   color: var(--md-sys-color-on-surface-variant);
   font: var(--md-sys-typescale-label-medium);
+}
+
+.action-status-meeting [data-icon] svg {
+  width: 15px;
+  height: 15px;
 }
 
 .action-status-editor {
@@ -2540,7 +2559,7 @@ a {
   position: relative;
   display: grid;
   min-height: 64px;
-  grid-template-columns: 24px minmax(0, 1fr);
+  grid-template-columns: 24px 40px minmax(0, 1fr);
   gap: 14px;
   align-items: center;
   padding: 9px 14px;
@@ -2590,6 +2609,49 @@ a {
   transform: scale(1);
 }
 
+.action-status-option-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--md-sys-shape-medium);
+  color: var(--md-sys-color-on-surface-variant);
+  background: var(--md-sys-color-surface-container-highest);
+  transition: background-color var(--md-sys-motion-duration-short-2) var(--md-sys-motion-standard), color var(--md-sys-motion-duration-short-2) var(--md-sys-motion-standard), transform var(--md-sys-motion-duration-short-2) var(--md-sys-motion-emphasized-decelerate);
+}
+
+.action-status-option-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.action-status-option.status-pending .action-status-option-icon {
+  color: var(--md-sys-color-on-tertiary-container);
+  background: var(--md-sys-color-tertiary-container);
+}
+
+.action-status-option.status-in-progress .action-status-option-icon {
+  color: var(--md-sys-color-on-primary-container);
+  background: var(--md-sys-color-primary-container);
+}
+
+.action-status-option.status-blocked .action-status-option-icon {
+  color: var(--md-sys-color-warning);
+  background: var(--md-sys-color-warning-container);
+}
+
+.action-status-option.status-finished .action-status-option-icon {
+  color: var(--md-sys-color-on-success-container);
+  background: var(--md-sys-color-success-container);
+}
+
+.action-status-option.status-cancelled .action-status-option-icon {
+  color: var(--md-sys-color-on-surface-variant);
+  background: var(--md-sys-color-surface-container-highest);
+}
+
+.action-status-option input:checked ~ .action-status-option-icon {
+  transform: scale(1.08);
+}
+
 .action-status-option input:focus-visible ~ .action-status-option-copy {
   text-decoration: underline;
   text-decoration-color: var(--md-sys-color-primary);
@@ -2614,6 +2676,14 @@ a {
   margin-top: 2px;
   color: var(--md-sys-color-on-surface-variant);
   font: var(--md-sys-typescale-body-small);
+}
+
+#action-status-submit.updating [data-icon] {
+  animation: action-status-spin 900ms linear infinite;
+}
+
+@keyframes action-status-spin {
+  to { transform: rotate(360deg); }
 }
 
 .form-grid {

@@ -124,6 +124,8 @@ def test_frontend_page_is_served(client: TestClient) -> None:
     assert 'method: "PATCH"' in script.text
     assert "showAllMeetings: false" in script.text
     assert "setAllMeetingsExpanded(!state.showAllMeetings)" in script.text
+    assert 'PENDING: "clock"' in script.text
+    assert 'BLOCKED: "blocked"' in script.text
     assert 'create("ul", "person-todo-list")' in script.text
     assert "loadMeetings(body.meeting_id),\n      loadPersons()," in script.text
 
