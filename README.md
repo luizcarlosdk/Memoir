@@ -17,6 +17,7 @@ Memoir helps individuals and small teams organize what happened during their mee
 - [ ] **Ask AI** — Q&A over a single meeting's transcript
 - [ ] **Semantic search** — cross-meeting search and Q&A powered by pgvector
 - [ ] **Workspace features** — collaboration and org-level tools
+- [ ] **MCP Support** — create MCP routes for agents interaction
 
 ## Supported transcript formats
 
@@ -32,12 +33,7 @@ Memoir helps individuals and small teams organize what happened during their mee
 Use `make` for common tasks:
 
 ```bash
-make run-frontend            # Initialize the database and start the app with reload
-make run-frontend-clean      # Reset all local data and start the app with reload
-make test                     # Run fast tests (quiet)
-make test-verbose             # Run fast tests with output (-s flag)
-make test-integration         # Run LLM integration test (requires GOOGLE_API_KEY)
-make test-integration-verbose # Run integration test with output
+make run                      # Initialize the application
 make test-all                 # Run all tests
 make help                     # Show all commands
 ```
