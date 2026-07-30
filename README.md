@@ -13,7 +13,7 @@ Memoir helps individuals and small teams organize what happened during their mee
 
 - [x] **Transcript parsing** — format detection, deterministic parsers (Zoom, Google Meet), LLM fallback for messy/unknown formats
 - [x] **Storage & Meeting page** — persist transcripts, generate summaries/decisions/action items
-- [ ] **Person page** — cross-meeting aggregation of participants and their contributions
+- [x] **Person page** — cross-meeting aggregation of participants and their contributions
 - [ ] **Ask AI** — Q&A over a single meeting's transcript
 - [ ] **Semantic search** — cross-meeting search and Q&A powered by pgvector
 - [ ] **Workspace features** — collaboration and org-level tools
