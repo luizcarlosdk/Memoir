@@ -145,7 +145,7 @@ function decisionCount(meeting) {
 }
 
 function openActions(meeting) {
-  return (meeting.action_items || []).filter((item) => !["DONE", "COMPLETED", "CLOSED"].includes(String(item.status).toUpperCase()));
+  return (meeting.action_items || []).filter((item) => !["FINISHED", "CANCELLED"].includes(String(item.status).toUpperCase()));
 }
 
 function overdueActionCount(meeting) {
@@ -446,7 +446,7 @@ function renderActionList(meeting) {
     return list;
   }
   meeting.action_items.forEach((item) => {
-    const done = String(item.status).toUpperCase() === "DONE";
+    const done = String(item.status).toUpperCase() === "FINISHED";
     const row = create("li", `action-item${done ? " done" : ""}`);
     const check = create("span", "action-check");
     if (done) check.append(icon("check"));

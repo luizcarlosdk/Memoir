@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.database.connection import get_db_session
 from app.database.models import ActionItem, Meeting, Person, Transcript, Workspace
+from app.helpers.person import normalize_person_name
 from app.orchestrator import TranscriptOrchestrator
 
 router = APIRouter()
@@ -24,6 +25,7 @@ class TranscriptUpload(BaseModel):
 
 
 class TranscriptResponse(TypedDict):
+    person_id: str | None
     speaker: str
     text: str
     timestamp_start: str | None
@@ -97,10 +99,32 @@ def summarize_meeting(
         new_meeting.summary = meeting_insight.summary
         new_meeting.decisions = meeting_insight.decisions
 
+        people_by_name = {
+            normalize_person_name(person.name): person
+            for person in db.query(Person)
+            .filter(Person.workspace_id == new_meeting.workspace_id)
+            .all()
+        }
+
         for segment in segments:
+            normalized_speaker = normalize_person_name(segment.speaker)
+            person = people_by_name.get(normalized_speaker)
+            if person is None:
+                person = Person(
+                    name=segment.speaker.strip(),
+                    workspace_id=new_meeting.workspace_id,
+                )
+                db.add(person)
+                db.flush()
+                people_by_name[normalized_speaker] = person
+
+            if person not in new_meeting.participants:
+                new_meeting.participants.append(person)
+
             db.add(
                 Transcript(
                     meeting_id=new_meeting.id,
+                    person_id=person.id,
                     speaker=segment.speaker,
                     text=segment.text,
                     timestamp_start=segment.timestamp_start,
@@ -112,14 +136,8 @@ def summarize_meeting(
         for item in meeting_insight.action_items:
             db_assignee_id = None
             if item.responsible_person:
-                person = (
-                    db.query(Person)
-                    .filter(
-                        Person.name == item.responsible_person,
-                        Person.workspace_id == new_meeting.workspace_id,
-                    )
-                    .first()
-                )
+                normalized_assignee = normalize_person_name(item.responsible_person)
+                person = people_by_name.get(normalized_assignee)
                 if person:
                     db_assignee_id = person.id
                 else:
@@ -129,6 +147,7 @@ def summarize_meeting(
                     )
                     db.add(new_assignee)
                     db.flush()
+                    people_by_name[normalized_assignee] = new_assignee
                     db_assignee_id = new_assignee.id
 
             db.add(
@@ -178,6 +197,7 @@ def serialize_meeting(meeting: Meeting) -> MeetingResponse:
         "participants": [person.name for person in meeting.participants],
         "transcript": [
             {
+                "person_id": segment.person_id,
                 "speaker": segment.speaker,
                 "text": segment.text,
                 "timestamp_start": segment.timestamp_start,
@@ -189,7 +209,7 @@ def serialize_meeting(meeting: Meeting) -> MeetingResponse:
             {
                 "content": item.content,
                 "assignee": item.assignee.name if item.assignee else None,
-                "status": item.status,
+                "status": item.status.value,
                 "due_date": item.due_date.isoformat() if item.due_date else None,
             }
             for item in meeting.action_items

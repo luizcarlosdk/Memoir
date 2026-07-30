@@ -13,7 +13,16 @@ import app.main as main
 import app.routes as routes
 from app.core.meeting_inteligence import ExtractedActionItem, MeetingInsight
 from app.database.connection import get_db_session
-from app.database.models import ActionItem, Base, Meeting, Person, User, Workspace
+from app.database.models import (
+    ActionItem,
+    ActionItemStatus,
+    Base,
+    Meeting,
+    Person,
+    Transcript,
+    User,
+    Workspace,
+)
 from app.parsers.base import TranscriptSegment
 
 
@@ -141,8 +150,10 @@ def test_summarize_meeting_persists_insights(
     meeting_id = response.json()["meeting_id"]
     serialized_meeting = response.json()["meeting"]
     assert serialized_meeting["workspace_id"] == TEST_WORKSPACE_ID
+    assert serialized_meeting["action_items"][0]["status"] == "PENDING"
     assert serialized_meeting["transcript"] == [
         {
+            "person_id": serialized_meeting["transcript"][0]["person_id"],
             "speaker": "Ana",
             "text": "We will ship next week.",
             "timestamp_start": "00:00:01",
@@ -163,9 +174,64 @@ def test_summarize_meeting_persists_insights(
             tzinfo=timezone.utc,
         )
         assert len(meeting.child_transcripts) == 1
+        transcript = meeting.child_transcripts[0]
+        assert transcript.person is not None
+        assert transcript.person.name == "Ana"
+        assert transcript.person in meeting.participants
+        assert transcript in transcript.person.transcript_segments
+        assert serialized_meeting["transcript"][0]["person_id"] == transcript.person.id
         assert len(meeting.action_items) == 1
         assert meeting.action_items[0].content == "Prepare release notes."
+        assert meeting.action_items[0].status is ActionItemStatus.PENDING
         assert meeting.action_items[0].assignee.name == "Ana"
+    finally:
+        session.close()
+
+
+def test_summarize_meeting_reuses_speaker_with_normalized_name(
+    client: TestClient,
+    db_session_factory: sessionmaker[Session],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = db_session_factory()
+    try:
+        existing_person = Person(name="Ana Silva", workspace_id=TEST_WORKSPACE_ID)
+        session.add(existing_person)
+        session.commit()
+        existing_person_id = existing_person.id
+    finally:
+        session.close()
+
+    class FakeOrchestrator:
+        def detect_and_parse(self, raw_transcript: str) -> list[TranscriptSegment]:
+            return [
+                TranscriptSegment(
+                    speaker="  ANA   SILVA ",
+                    text="I will prepare the release notes.",
+                )
+            ]
+
+        def summarize_transcript(self, raw_transcript: str) -> MeetingInsight:
+            return MeetingInsight(
+                summary="Summary",
+                decisions="Decision",
+                action_items=[],
+            )
+
+    monkeypatch.setattr(routes, "TranscriptOrchestrator", FakeOrchestrator)
+
+    response = client.post(
+        "/meetings/summarize",
+        json={"raw_transcript": "ANA SILVA: I will prepare the release notes."},
+    )
+
+    assert response.status_code == 200
+    session = db_session_factory()
+    try:
+        assert session.query(Person).count() == 1
+        transcript = session.query(Transcript).one()
+        assert transcript.person_id == existing_person_id
+        assert transcript.speaker == "  ANA   SILVA "
     finally:
         session.close()
 

@@ -1,9 +1,11 @@
 import uuid
+from enum import StrEnum
 
 from sqlalchemy import (
     Column,
     DateTime,
     Engine,
+    Enum as SQLEnum,
     ForeignKey,
     String,
     Table,
@@ -138,10 +140,20 @@ class Transcript(Base, UUIDMixin, BaseMixin):
         ForeignKey("meetings.id"),
         nullable=False,
     )
+    person_id: Mapped[str | None] = mapped_column(
+        String,
+        ForeignKey("persons.id"),
+        nullable=True,
+        index=True,
+    )
 
     parent_meeting: Mapped["Meeting"] = relationship(
         "Meeting",
         back_populates="child_transcripts",
+    )
+    person: Mapped["Person | None"] = relationship(
+        "Person",
+        back_populates="transcript_segments",
     )
 
     def __repr__(self) -> str:
@@ -176,9 +188,24 @@ class Person(Base, UUIDMixin, BaseMixin):
         back_populates="assignee",
     )
 
+    transcript_segments: Mapped[list["Transcript"]] = relationship(
+        "Transcript",
+        back_populates="person",
+    )
+
     def __repr__(self) -> str:
         """Return a string representation of the Person instance."""
         return f"<Person(id={self.id}, name={self.name}, email={self.email}, phone_number={self.phone_number})>"
+
+
+class ActionItemStatus(StrEnum):
+    """Lifecycle states available to an action item."""
+
+    PENDING = "PENDING"
+    IN_PROGRESS = "IN_PROGRESS"
+    BLOCKED = "BLOCKED"
+    FINISHED = "FINISHED"
+    CANCELLED = "CANCELLED"
 
 
 class ActionItem(Base, UUIDMixin, BaseMixin):
@@ -206,7 +233,18 @@ class ActionItem(Base, UUIDMixin, BaseMixin):
     )
 
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    status: Mapped[str] = mapped_column(String, default="PENDING", nullable=False)
+    status: Mapped[ActionItemStatus] = mapped_column(
+        SQLEnum(
+            ActionItemStatus,
+            name="action_item_status",
+            native_enum=False,
+            create_constraint=True,
+            validate_strings=True,
+        ),
+        default=ActionItemStatus.PENDING,
+        server_default=ActionItemStatus.PENDING.value,
+        nullable=False,
+    )
     due_date: Mapped[DateTime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
