@@ -35,6 +35,7 @@ const state = {
   activeTab: "overview",
   meetingPage: 1,
   meetingsPerPage: 5,
+  showAllMeetings: false,
 };
 
 const MOTION = Object.freeze({
@@ -82,6 +83,7 @@ const elements = {
   list: document.querySelector("#meeting-list"),
   recentList: document.querySelector("#recent-meeting-list"),
   pagination: document.querySelector("#meeting-pagination"),
+  viewAllMeetings: document.querySelector("#view-all-meetings"),
   empty: document.querySelector("#empty-meetings"),
   noResults: document.querySelector("#no-results"),
   search: document.querySelector("#meeting-search"),
@@ -325,6 +327,7 @@ function renderWorkspaces() {
       state.selectedPersonId = null;
       state.personReturnContext = null;
       state.personDetail = null;
+      state.showAllMeetings = false;
       localStorage.setItem("memoir.workspace", workspace.id);
       renderWorkspaces();
       toggleWorkspaceMenu(false);
@@ -494,6 +497,14 @@ function filteredMeetings() {
   });
 }
 
+function setAllMeetingsExpanded(expanded) {
+  state.showAllMeetings = expanded;
+  state.meetingPage = 1;
+  renderMeetingList();
+  if (expanded) animateIterable(elements.list, ".meeting-row");
+  document.querySelector("#all-meetings").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function renderMeetingList() {
   const meetings = filteredMeetings();
   elements.list.replaceChildren();
@@ -502,7 +513,9 @@ function renderMeetingList() {
   elements.empty.classList.toggle("hidden", state.meetings.length > 0);
   elements.noResults.classList.toggle("hidden", state.meetings.length === 0 || meetings.length > 0);
   elements.list.classList.toggle("hidden", meetings.length === 0);
-  elements.pagination.classList.toggle("hidden", meetings.length === 0);
+  elements.viewAllMeetings.textContent = state.showAllMeetings ? "Show less" : "View all";
+  elements.viewAllMeetings.setAttribute("aria-expanded", String(state.showAllMeetings));
+  elements.viewAllMeetings.classList.toggle("hidden", state.meetings.length <= 3);
   elements.recentList.closest(".recent-section").classList.toggle("hidden", state.meetings.length === 0);
 
   state.meetings.slice(0, 3).forEach((meeting) => {
@@ -535,10 +548,11 @@ function renderMeetingList() {
     elements.recentList.append(card);
   });
 
-  const pageCount = Math.max(1, Math.ceil(meetings.length / state.meetingsPerPage));
+  const pageSize = state.showAllMeetings ? Math.max(meetings.length, 1) : state.meetingsPerPage;
+  const pageCount = Math.max(1, Math.ceil(meetings.length / pageSize));
   state.meetingPage = Math.min(state.meetingPage, pageCount);
-  const start = (state.meetingPage - 1) * state.meetingsPerPage;
-  meetings.slice(start, start + state.meetingsPerPage).forEach((meeting) => {
+  const start = (state.meetingPage - 1) * pageSize;
+  meetings.slice(start, start + pageSize).forEach((meeting) => {
     const people = meetingPeople(meeting);
     const visual = meetingVisual(meeting);
     const row = create("article", "meeting-row");
@@ -565,9 +579,17 @@ function renderMeetingList() {
     elements.list.append(row);
   });
 
+  elements.pagination.classList.toggle("hidden", meetings.length === 0);
   if (meetings.length) {
-    const end = Math.min(start + state.meetingsPerPage, meetings.length);
+    const end = Math.min(start + pageSize, meetings.length);
     elements.pagination.append(create("span", "pagination-summary", `Showing ${start + 1} to ${end} of ${meetings.length} meetings`));
+    if (state.showAllMeetings) {
+      const showLess = create("button", "inline-button", "Show less");
+      showLess.type = "button";
+      showLess.addEventListener("click", () => setAllMeetingsExpanded(false));
+      elements.pagination.append(showLess);
+      return;
+    }
     const controls = create("div", "pagination-controls");
     const addPageButton = (label, page, disabled = false, active = false) => {
       const button = create("button", active ? "active" : "", label); button.type = "button"; button.disabled = disabled;
@@ -1500,7 +1522,7 @@ elements.personOpenActionsFilter.addEventListener("click", () => {
   renderPersonDirectory();
 });
 elements.personSort.addEventListener("change", renderPersonDirectory);
-document.querySelector("#view-all-meetings").addEventListener("click", () => document.querySelector("#all-meetings").scrollIntoView({ behavior: "smooth", block: "start" }));
+elements.viewAllMeetings.addEventListener("click", () => setAllMeetingsExpanded(!state.showAllMeetings));
 
 function openSidebar() { elements.sidebar.classList.add("open"); elements.sidebarScrim.classList.remove("hidden"); }
 document.querySelector("#menu-button").addEventListener("click", openSidebar);
