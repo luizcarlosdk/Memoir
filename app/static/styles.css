@@ -82,7 +82,7 @@ a { color: inherit; text-decoration: none; }
 .storage-card div span { color: var(--muted); font-size: 12px; line-height: 1.45; }
 .sidebar-caption { margin: 15px 0 0; color: var(--muted-2); font-size: 12px; text-align: center; }
 
-.meeting-column { min-width: 0; background: var(--surface); view-transition-name: main-content; }
+.meeting-column, .people-column { min-width: 0; background: var(--surface); view-transition-name: main-content; }
 .mobile-header { display: none; }
 .content-wrap { width: min(100%, 1200px); margin: 0 auto; padding: 34px 32px 52px; }
 .page-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 28px; }
@@ -161,6 +161,27 @@ a { color: inherit; text-decoration: none; }
 .pagination-controls button:hover:not(:disabled), .pagination-controls button.active { color: var(--primary); border-color: var(--primary-light); background: var(--primary-extra-light); }
 .pagination-controls button:disabled { cursor: default; opacity: .35; }
 
+.people-directory { margin-top: 34px; }
+.people-directory-heading { margin-bottom: 18px; }
+.people-directory-heading h2 > span { color: var(--accent-violet); }
+.people-search { width: min(330px, 100%); }
+.people-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.person-card { display: grid; min-height: 190px; grid-template-rows: auto 1fr auto; padding: 18px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface); box-shadow: 0 6px 20px rgb(15 94 89 / 5%); cursor: pointer; transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease; }
+.person-card:hover { border-color: var(--primary-light); box-shadow: 0 12px 30px rgb(15 94 89 / 11%); transform: translateY(-2px); }
+.person-card:focus-visible { border-color: var(--purple); outline: 3px solid var(--purple-soft); }
+.person-card-header { display: flex; gap: 12px; align-items: center; }
+.person-avatar { display: grid; width: 48px; height: 48px; flex: none; place-items: center; border-radius: 14px; color: #fff; background: var(--avatar-color, var(--primary)); font-size: 14px; font-weight: 700; text-transform: uppercase; }
+.person-card-copy { min-width: 0; }
+.person-card-copy strong, .person-card-copy span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.person-card-copy strong { font-size: 15px; }
+.person-card-copy span { margin-top: 3px; color: var(--muted); font-size: 12px; }
+.person-card-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; align-self: end; margin-top: 20px; }
+.person-card-stat { padding: 9px; border-radius: 9px; background: var(--surface-soft); text-align: center; }
+.person-card-stat strong, .person-card-stat span { display: block; }
+.person-card-stat strong { font-size: 15px; }
+.person-card-stat span { margin-top: 2px; color: var(--muted); font-size: 10px; }
+.person-card-footer { margin-top: 13px; padding-top: 11px; border-top: 1px solid var(--line); color: var(--muted-2); font-size: 11px; }
+
 .upload-dropzone { display: flex; min-height: 126px; align-items: center; justify-content: center; gap: 17px; padding: 24px; border: 1.5px dashed #bfb3fb; border-radius: 14px; background: linear-gradient(135deg, #fdfcff, #faf8ff); text-align: left; transition: .2s ease; }
 .upload-dropzone:hover, .upload-dropzone:focus-visible, .upload-dropzone.dragover { border-color: var(--purple); background: var(--purple-soft); outline: none; transform: translateY(-1px); }
 .upload-icon { width: 43px; height: 43px; border-radius: 13px; color: var(--purple); background: #ece7ff; }
@@ -205,7 +226,7 @@ a { color: inherit; text-decoration: none; }
 .empty-meetings p { max-width: 430px; margin: 0 auto 20px; color: var(--muted); font-size: 14px; line-height: 1.65; }
 
 .detail-panel { display: none; min-width: 0; min-height: 100vh; background: var(--surface-soft); view-transition-name: main-content; }
-.app-shell.detail-view .meeting-column { display: none; }
+.app-shell.detail-view .meeting-column, .app-shell.detail-view .people-column { display: none; }
 .app-shell.detail-view .detail-panel { display: block; }
 .meeting-detail { width: min(100%, 1120px); margin: 0 auto; }
 .detail-header { padding: 26px 32px 0; border-bottom: 1px solid var(--line); background: var(--surface-soft); }
@@ -267,11 +288,52 @@ a { color: inherit; text-decoration: none; }
 .transcript-speaker time { color: var(--muted-2); font-size: 12px; }
 .transcript-row p { margin: 0; color: var(--ink); font-size: 14px; line-height: 1.7; }
 .participant-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-.participant-row { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; align-items: center; padding: 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.participant-row { display: grid; width: 100%; grid-template-columns: 34px minmax(0, 1fr); gap: 10px; align-items: center; padding: 13px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); text-align: left; }
+.participant-row.participant-link { grid-template-columns: 34px minmax(0, 1fr) 18px; cursor: pointer; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
+.participant-row.participant-link:hover { border-color: var(--primary-light); background: var(--primary-extra-light); transform: translateY(-1px); }
+.participant-row.participant-link:focus-visible { border-color: var(--purple); outline: 3px solid var(--purple-soft); }
+.participant-link-arrow { color: var(--muted-2); transform: rotate(-90deg); transition: color .18s ease, transform .18s ease; }
+.participant-link:hover .participant-link-arrow { color: var(--primary); transform: translateX(2px) rotate(-90deg); }
 .participant-row .avatar { width: 34px; height: 34px; margin: 0; }
 .participant-row strong, .participant-row span { display: block; }
 .participant-row strong { font-size: 14px; }
 .participant-row div span { margin-top: 3px; color: var(--muted); font-size: 12px; }
+
+.person-detail-identity { display: flex; gap: 15px; align-items: center; }
+.person-detail-identity .person-avatar { width: 58px; height: 58px; border-radius: 16px; font-size: 17px; }
+.person-contact { display: flex; flex-wrap: wrap; gap: 7px 15px; color: var(--muted); font-size: 13px; }
+.person-overview { display: grid; gap: 18px; }
+.person-stat-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.person-stat-card { padding: 16px; border: 1px solid var(--line); border-radius: 11px; background: var(--surface); }
+.person-stat-card strong, .person-stat-card span { display: block; }
+.person-stat-card strong { font-size: 24px; letter-spacing: -.04em; }
+.person-stat-card span { margin-top: 3px; color: var(--muted); font-size: 12px; }
+.person-section { padding: 17px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.person-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.person-section-heading h3 { margin: 0; font-size: 15px; }
+.person-activity-list { display: grid; gap: 10px; }
+.person-meeting-card, .contribution-card, .person-action-card { padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.person-meeting-card { cursor: pointer; transition: border-color .18s ease, background .18s ease; }
+.person-meeting-card:hover { border-color: var(--primary-light); background: var(--primary-extra-light); }
+.person-activity-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.person-activity-heading strong { font-size: 14px; }
+.person-activity-heading time { flex: none; color: var(--muted); font-size: 11px; }
+.person-meeting-summary { margin: 7px 0 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.contribution-preview-list { display: grid; gap: 6px; margin-top: 10px; }
+.contribution-preview { margin: 0; padding-left: 11px; border-left: 2px solid var(--primary-light); color: var(--ink); font-size: 12px; line-height: 1.55; }
+.contribution-meta, .person-action-meta { display: flex; flex-wrap: wrap; gap: 7px 13px; margin-top: 9px; color: var(--muted); font-size: 11px; }
+.contribution-card p { margin: 0; font-size: 14px; line-height: 1.65; }
+.person-action-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; }
+.person-action-card p { margin: 0; font-size: 13px; line-height: 1.55; }
+.action-status { display: inline-flex; align-items: center; align-self: start; padding: 4px 8px; border-radius: 99px; color: var(--primary-hover); background: var(--primary-extra-light); font-size: 10px; font-weight: 700; letter-spacing: .04em; }
+.action-status.finished { color: var(--accent-green); background: var(--accent-green-light); }
+.action-status.blocked { color: #a15c09; background: var(--amber-soft); }
+.action-status.cancelled { color: var(--muted); background: #eef1f1; }
+.person-tab-tools { display: flex; gap: 10px; margin-bottom: 14px; }
+.person-tab-tools .search-box { flex: 1; }
+.person-tab-tools select { min-width: 150px; height: 42px; padding: 0 32px 0 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); font-size: 12px; }
+.person-result-summary { margin: 0 0 12px; color: var(--muted); font-size: 12px; }
+.mobile-header-spacer { width: 38px; }
 
 ::view-transition-group(main-content) { animation-duration: 320ms; animation-timing-function: cubic-bezier(.2, .75, .25, 1); }
 ::view-transition-old(main-content) { animation: page-out-forward 260ms cubic-bezier(.4, 0, 1, 1) both; }
@@ -284,7 +346,7 @@ a { color: inherit; text-decoration: none; }
 @keyframes page-in-back { from { opacity: 0; transform: translateX(-22px) scale(.992); } }
 @keyframes fallback-page-in { from { opacity: 0; transform: translateY(9px); } }
 @supports not (view-transition-name: main-content) {
-  .app-shell.detail-view .meeting-detail, .app-shell:not(.detail-view) .meeting-column { animation: fallback-page-in 260ms cubic-bezier(.2, .75, .25, 1) both; }
+  .app-shell.detail-view .meeting-detail, .app-shell:not(.detail-view) .meeting-column, .app-shell:not(.detail-view) .people-column { animation: fallback-page-in 260ms cubic-bezier(.2, .75, .25, 1) both; }
 }
 
 .modal-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; padding: 24px; place-items: center; overflow-y: auto; background: rgb(12 14 29 / 52%); backdrop-filter: blur(5px); animation: fade-in .18s ease; }
@@ -323,6 +385,7 @@ a { color: inherit; text-decoration: none; }
   .recent-meeting-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .meeting-row { grid-template-columns: 36px minmax(155px, 1fr) 165px 65px 155px 44px 24px; }
   .row-decisions { display: none; }
+  .people-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 860px) {
@@ -359,6 +422,8 @@ a { color: inherit; text-decoration: none; }
   .meeting-row > .status-badge, .meeting-row > .processed-check { grid-area: status; justify-self: end; }
   .row-participants, .row-more { display: none; }
   .meeting-pagination { align-items: flex-start; flex-direction: column; }
+  .people-directory-heading { align-items: flex-start; flex-direction: column; }
+  .people-search { width: 100%; }
   .app-shell.detail-view .detail-panel { min-height: 100vh; }
   .detail-header { padding-top: 20px; }
   .modal-backdrop { padding: 10px; align-items: end; }
@@ -376,6 +441,7 @@ a { color: inherit; text-decoration: none; }
   .detail-tabs { gap: 25px; }
   .insight-grid, .participant-list { grid-template-columns: 1fr; }
   .recent-meeting-grid { grid-template-columns: 1fr; }
+  .people-grid, .person-stat-grid { grid-template-columns: 1fr; }
   .recent-meeting-card { min-height: 310px; }
   .page-actions .primary-button, .page-actions .secondary-button { flex: 1; padding-right: 10px; padding-left: 10px; }
   .insight-card:nth-child(3) { grid-column: auto; }
@@ -383,6 +449,9 @@ a { color: inherit; text-decoration: none; }
   .field.full { grid-column: auto; }
   .modal-header, .modal-actions { padding-right: 18px; padding-left: 18px; }
   .form-error { margin-right: 18px; margin-left: 18px; }
+  .person-action-card { grid-template-columns: 1fr; }
+  .person-tab-tools { flex-direction: column; }
+  .person-tab-tools select { width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {

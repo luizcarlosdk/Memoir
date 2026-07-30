@@ -2,14 +2,33 @@ import logging
 from datetime import datetime
 from typing import TypedDict
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session, selectinload
 
 from app.database.connection import get_db_session
-from app.database.models import ActionItem, Meeting, Person, Transcript, Workspace
+from app.database.models import (
+    ActionItem,
+    ActionItemStatus,
+    Meeting,
+    Person,
+    Transcript,
+    Workspace,
+)
 from app.helpers.person import normalize_person_name
 from app.orchestrator import TranscriptOrchestrator
+from app.services.person_insight import (
+    PersonActionItemPageResponse,
+    PersonContributionPageResponse,
+    PersonDirectoryPageResponse,
+    PersonInsightResponse,
+    PersonMeetingPageResponse,
+    get_person_action_items,
+    get_person_contributions,
+    get_person_insight,
+    get_person_meetings,
+    list_people,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -39,6 +58,11 @@ class ActionItemResponse(TypedDict):
     due_date: str | None
 
 
+class MeetingParticipantResponse(TypedDict):
+    id: str
+    name: str
+
+
 class MeetingResponse(TypedDict):
     id: str
     workspace_id: str
@@ -51,6 +75,7 @@ class MeetingResponse(TypedDict):
     decisions: str | None
     created_at: str | None
     participants: list[str]
+    participant_details: list[MeetingParticipantResponse]
     transcript: list[TranscriptResponse]
     action_items: list[ActionItemResponse]
 
@@ -195,6 +220,10 @@ def serialize_meeting(meeting: Meeting) -> MeetingResponse:
         "decisions": meeting.decisions,
         "created_at": meeting.created_at.isoformat() if meeting.created_at else None,
         "participants": [person.name for person in meeting.participants],
+        "participant_details": [
+            {"id": person.id, "name": person.name}
+            for person in meeting.participants
+        ],
         "transcript": [
             {
                 "person_id": segment.person_id,
@@ -263,3 +292,106 @@ def list_workspaces(db: Session = Depends(get_db_session)) -> WorkspaceListRespo
         )
         serialized.append({"id": workspace_id, "name": fallback_name})
     return {"workspaces": serialized}
+
+
+@router.get("/persons/{person_id}")
+def retrieve_person_insight(
+    person_id: str,
+    workspace_id: str | None = None,
+    db: Session = Depends(get_db_session),
+) -> PersonInsightResponse:
+    insight = get_person_insight(
+        db,
+        person_id=person_id,
+        workspace_id=workspace_id,
+    )
+    if insight is None:
+        raise HTTPException(status_code=404, detail="Person not found")
+    return insight
+
+
+@router.get("/persons")
+def retrieve_people(
+    workspace_id: str | None = None,
+    query: str | None = Query(default=None, max_length=200),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db_session),
+) -> PersonDirectoryPageResponse:
+    return list_people(
+        db,
+        workspace_id=workspace_id,
+        query_text=query,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/persons/{person_id}/meetings")
+def retrieve_person_meetings(
+    person_id: str,
+    workspace_id: str | None = None,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db_session),
+) -> PersonMeetingPageResponse:
+    result = get_person_meetings(
+        db,
+        person_id=person_id,
+        workspace_id=workspace_id,
+        limit=limit,
+        offset=offset,
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Person not found")
+    return result
+
+
+@router.get("/persons/{person_id}/contributions")
+def retrieve_person_contributions(
+    person_id: str,
+    workspace_id: str | None = None,
+    query: str | None = Query(default=None, max_length=200),
+    meeting_id: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db_session),
+) -> PersonContributionPageResponse:
+    result = get_person_contributions(
+        db,
+        person_id=person_id,
+        workspace_id=workspace_id,
+        query_text=query,
+        meeting_id=meeting_id,
+        date_from=date_from,
+        date_to=date_to,
+        limit=limit,
+        offset=offset,
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Person not found")
+    return result
+
+
+@router.get("/persons/{person_id}/action-items")
+def retrieve_person_action_items(
+    person_id: str,
+    workspace_id: str | None = None,
+    status: ActionItemStatus | None = None,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db_session),
+) -> PersonActionItemPageResponse:
+    result = get_person_action_items(
+        db,
+        person_id=person_id,
+        workspace_id=workspace_id,
+        status=status,
+        limit=limit,
+        offset=offset,
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Person not found")
+    return result
