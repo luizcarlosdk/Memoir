@@ -14,7 +14,6 @@ const ICONS = {
   clock: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
   list: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>',
   panel: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M14 4v16M7 8h3M7 12h3"/></svg>',
-  more: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1" fill="currentColor" stroke="none"/></svg>',
   edit: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.2-1 10.6-10.6a2 2 0 0 0-2.8-2.8L5.4 16.2 4 20Z"/><path d="m14.8 6.8 2.8 2.8"/></svg>',
   trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6"/></svg>',
   progress: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 6.7M20 4v7h-7"/></svg>',
@@ -39,6 +38,8 @@ const state = {
   meetingPage: 1,
   meetingsPerPage: 5,
   showAllMeetings: false,
+  meetingsLoadError: null,
+  personsLoadError: null,
 };
 
 const MOTION = Object.freeze({
@@ -79,6 +80,8 @@ let personTabTransitionVersion = 0;
 let modalReturnFocus = null;
 let actionStatusReturnFocus = null;
 let editingActionItem = null;
+let sidebarReturnFocus = null;
+const mobileNavigation = window.matchMedia("(max-width: 900px)");
 
 const elements = {
   shell: document.querySelector(".app-shell"),
@@ -96,6 +99,8 @@ const elements = {
   viewAllMeetings: document.querySelector("#view-all-meetings"),
   empty: document.querySelector("#empty-meetings"),
   noResults: document.querySelector("#no-results"),
+  meetingsError: document.querySelector("#meetings-error"),
+  meetingsErrorMessage: document.querySelector("#meetings-error-message"),
   search: document.querySelector("#meeting-search"),
   dateFilter: document.querySelector("#date-filter"),
   statusFilter: document.querySelector("#status-filter"),
@@ -129,10 +134,13 @@ const elements = {
   peopleList: document.querySelector("#people-list"),
   peopleEmpty: document.querySelector("#empty-people"),
   peopleNoResults: document.querySelector("#no-person-results"),
+  peopleError: document.querySelector("#people-error"),
+  peopleErrorMessage: document.querySelector("#people-error-message"),
   personSearch: document.querySelector("#person-search"),
   personOpenActionsFilter: document.querySelector("#person-open-actions-filter"),
   personSort: document.querySelector("#person-sort"),
 };
+const uploadValidationFields = [...elements.form.querySelectorAll("[data-validate]")];
 
 function setIcon(element, name) {
   element.dataset.icon = name;
@@ -369,8 +377,13 @@ async function loadWorkspaces() {
 }
 
 async function loadMeetings(preferredMeetingId = null) {
+  state.meetingsLoadError = null;
+  elements.meetingsError.classList.add("hidden");
+  elements.loading.closest(".all-meetings-section").setAttribute("aria-busy", "true");
   elements.loading.classList.remove("hidden");
   elements.list.classList.add("hidden");
+  elements.pagination.classList.add("hidden");
+  elements.recentList.closest(".recent-section").classList.add("hidden");
   elements.empty.classList.add("hidden");
   elements.noResults.classList.add("hidden");
   try {
@@ -385,18 +398,25 @@ async function loadMeetings(preferredMeetingId = null) {
     animateIterable(elements.recentList, ".recent-meeting-card");
     animateIterable(elements.list, ".meeting-row");
     renderDetail(selection);
+    if (preferred) elements.detail.querySelector("h2")?.focus({ preventScroll: true });
   } catch (error) {
     state.meetings = [];
+    state.meetingsLoadError = error.message;
     renderMeetingList();
-    showToast(error.message);
   } finally {
     elements.loading.classList.add("hidden");
+    elements.loading.closest(".all-meetings-section").setAttribute("aria-busy", "false");
   }
 }
 
 async function loadPersons() {
+  state.personsLoadError = null;
+  elements.peopleError.classList.add("hidden");
+  elements.peopleList.closest(".people-directory").setAttribute("aria-busy", "true");
   elements.peopleLoading.classList.remove("hidden");
   elements.peopleList.classList.add("hidden");
+  elements.peopleEmpty.classList.add("hidden");
+  elements.peopleNoResults.classList.add("hidden");
   try {
     const params = new URLSearchParams({ limit: "100" });
     if (state.currentWorkspace) params.set("workspace_id", state.currentWorkspace.id);
@@ -406,10 +426,11 @@ async function loadPersons() {
     animateIterable(elements.peopleList, ".person-card");
   } catch (error) {
     state.persons = [];
+    state.personsLoadError = error.message;
     renderPersonDirectory();
-    showToast(error.message);
   } finally {
     elements.peopleLoading.classList.add("hidden");
+    elements.peopleList.closest(".people-directory").setAttribute("aria-busy", "false");
   }
 }
 
@@ -432,6 +453,14 @@ function filteredPersons() {
 function renderPersonDirectory() {
   const persons = filteredPersons();
   elements.peopleList.replaceChildren();
+  elements.peopleError.classList.toggle("hidden", !state.personsLoadError);
+  if (state.personsLoadError) {
+    elements.peopleErrorMessage.textContent = state.personsLoadError;
+    elements.peopleEmpty.classList.add("hidden");
+    elements.peopleNoResults.classList.add("hidden");
+    elements.peopleList.classList.add("hidden");
+    return;
+  }
   elements.peopleEmpty.classList.toggle("hidden", state.persons.length > 0);
   elements.peopleNoResults.classList.toggle("hidden", state.persons.length === 0 || persons.length > 0);
   elements.peopleList.classList.toggle("hidden", persons.length === 0);
@@ -474,7 +503,47 @@ function renderPersonDirectory() {
   });
 }
 
-function showSection(section) {
+function setRoute(path, historyMode = "push") {
+  if (historyMode === "none") return;
+  const nextHash = `#${path}`;
+  if (window.location.hash === nextHash) return;
+  const method = historyMode === "replace" ? "replaceState" : "pushState";
+  const existingState = window.history.state && typeof window.history.state === "object" ? window.history.state : {};
+  const routeState = historyMode === "replace"
+    ? { ...existingState, memoirRoute: path }
+    : { memoirRoute: path, memoirReturnTo: window.location.hash || null };
+  window.history[method](routeState, "", nextHash);
+}
+
+function returnToPreviousRoute(fallback) {
+  if (window.history.state?.memoirReturnTo) window.history.back();
+  else fallback();
+}
+
+function meetingRoute(meetingId = null, tab = "overview") {
+  if (!meetingId) return "meetings";
+  return `meetings/${encodeURIComponent(meetingId)}/${encodeURIComponent(tab)}`;
+}
+
+function personRoute(personId = null, tab = "overview") {
+  if (!personId) return "persons";
+  return `persons/${encodeURIComponent(personId)}/${encodeURIComponent(tab)}`;
+}
+
+function setActiveNavigation(section) {
+  const meetingsActive = section === "meetings";
+  elements.meetingsNav.classList.toggle("active", meetingsActive);
+  elements.personsNav.classList.toggle("active", !meetingsActive);
+  if (meetingsActive) {
+    elements.meetingsNav.setAttribute("aria-current", "page");
+    elements.personsNav.removeAttribute("aria-current");
+  } else {
+    elements.personsNav.setAttribute("aria-current", "page");
+    elements.meetingsNav.removeAttribute("aria-current");
+  }
+}
+
+function showSection(section, { historyMode = "push" } = {}) {
   return transitionPage(() => {
     state.activeSection = section;
     state.selectedMeetingId = null;
@@ -486,13 +555,13 @@ function showSection(section) {
     elements.detail.replaceChildren();
     elements.meetingColumn.classList.toggle("hidden", section !== "meetings");
     elements.peopleColumn.classList.toggle("hidden", section !== "persons");
-    elements.meetingsNav.classList.toggle("active", section === "meetings");
-    elements.personsNav.classList.toggle("active", section === "persons");
-    document.title = section === "persons" ? "Memoir · Persons" : "Memoir · Meetings";
-    window.history.replaceState(null, "", `#${section}`);
+    setActiveNavigation(section);
+    document.title = section === "persons" ? "Memoir · People" : "Memoir · Meetings";
+    setRoute(section, historyMode);
     if (section === "meetings") renderMeetingList();
     if (section === "persons") renderPersonDirectory();
     window.scrollTo({ top: 0 });
+    elements[section === "meetings" ? "meetingColumn" : "peopleColumn"].querySelector("h1")?.focus({ preventScroll: true });
   }, section === "persons" ? "forward" : "back");
 }
 
@@ -526,6 +595,17 @@ function renderMeetingList() {
   elements.list.replaceChildren();
   elements.recentList.replaceChildren();
   elements.pagination.replaceChildren();
+  elements.meetingsError.classList.toggle("hidden", !state.meetingsLoadError);
+  if (state.meetingsLoadError) {
+    elements.meetingsErrorMessage.textContent = state.meetingsLoadError;
+    elements.empty.classList.add("hidden");
+    elements.noResults.classList.add("hidden");
+    elements.list.classList.add("hidden");
+    elements.pagination.classList.add("hidden");
+    elements.viewAllMeetings.classList.add("hidden");
+    elements.recentList.closest(".recent-section").classList.add("hidden");
+    return;
+  }
   elements.empty.classList.toggle("hidden", state.meetings.length > 0);
   elements.noResults.classList.toggle("hidden", state.meetings.length === 0 || meetings.length > 0);
   elements.list.classList.toggle("hidden", meetings.length === 0);
@@ -589,7 +669,7 @@ function renderMeetingList() {
       actions,
       decisions,
       renderStatusIndicator(meeting),
-      icon("more", "row-more"),
+      icon("chevron", "row-more"),
     );
     makeMeetingInteractive(row, meeting);
     elements.list.append(row);
@@ -607,26 +687,43 @@ function renderMeetingList() {
       return;
     }
     const controls = create("div", "pagination-controls");
-    const addPageButton = (label, page, disabled = false, active = false) => {
+    const addPageButton = (label, page, disabled = false, active = false, accessibleLabel = `Page ${page}`) => {
       const button = create("button", active ? "active" : "", label); button.type = "button"; button.disabled = disabled;
+      button.setAttribute("aria-label", accessibleLabel);
+      if (active) button.setAttribute("aria-current", "page");
       button.addEventListener("click", () => { state.meetingPage = page; renderMeetingList(); document.querySelector("#all-meetings").scrollIntoView({ behavior: "smooth", block: "start" }); });
       controls.append(button);
     };
-    addPageButton("‹", Math.max(1, state.meetingPage - 1), state.meetingPage === 1);
+    addPageButton("‹", Math.max(1, state.meetingPage - 1), state.meetingPage === 1, false, "Previous page");
     for (let page = 1; page <= pageCount; page += 1) addPageButton(String(page), page, false, page === state.meetingPage);
-    addPageButton("›", Math.min(pageCount, state.meetingPage + 1), state.meetingPage === pageCount);
+    addPageButton("›", Math.min(pageCount, state.meetingPage + 1), state.meetingPage === pageCount, false, "Next page");
     elements.pagination.append(controls);
   }
 }
 
-function selectMeeting(meetingId) {
+function selectMeeting(meetingId, { historyMode = "push", initialTab = "overview" } = {}) {
   const meeting = state.meetings.find((item) => item.id === meetingId);
+  if (!meeting) {
+    showSection("meetings", { historyMode: "replace" });
+    showToast("That meeting is not available in this workspace.");
+    return;
+  }
   transitionPage(() => {
+    state.activeSection = "meetings";
     state.selectedMeetingId = meetingId;
-    state.activeTab = "overview";
+    state.selectedPersonId = null;
+    state.personReturnContext = null;
+    state.personDetail = null;
+    state.activeTab = TAB_ORDER.includes(initialTab) ? initialTab : "overview";
+    elements.meetingColumn.classList.remove("hidden");
+    elements.peopleColumn.classList.add("hidden");
+    setActiveNavigation("meetings");
+    document.title = "Memoir · Meetings";
     renderMeetingList();
     renderDetail(meeting);
+    setRoute(meetingRoute(meetingId, state.activeTab), historyMode);
     window.scrollTo({ top: 0 });
+    elements.detail.querySelector("h2")?.focus({ preventScroll: true });
   });
 }
 
@@ -738,6 +835,7 @@ function renderOverview(meeting) {
       const previousTab = state.activeTab;
       state.activeTab = "transcript";
       renderActiveTab(meeting, previousTab);
+      setRoute(meetingRoute(meeting.id, state.activeTab), "replace");
     });
     previewHeading.append(viewAll);
   }
@@ -854,15 +952,22 @@ async function renderActiveTab(meeting, previousTab = null) {
   animateIterable(body, iterableSelector);
 }
 
-function showMeetingList() {
+function showMeetingList({ historyMode = "replace" } = {}) {
   transitionPage(() => {
+    state.activeSection = "meetings";
     state.selectedMeetingId = null;
     state.activeTab = "overview";
     elements.shell.classList.remove("detail-view");
     elements.detail.classList.add("hidden");
     elements.detail.replaceChildren();
+    elements.meetingColumn.classList.remove("hidden");
+    elements.peopleColumn.classList.add("hidden");
+    setActiveNavigation("meetings");
+    document.title = "Memoir · Meetings";
     renderMeetingList();
+    setRoute(meetingRoute(), historyMode);
     window.scrollTo({ top: 0 });
+    elements.meetingColumn.querySelector("h1")?.focus({ preventScroll: true });
   }, "back");
 }
 
@@ -878,14 +983,18 @@ function renderDetail(meeting) {
   elements.detail.classList.remove("hidden");
 
   const header = create("header", "detail-header");
-  const backButton = create("button", "back-button", "Back to meetings");
+  const returnRoute = window.history.state?.memoirReturnTo || window.location.hash;
+  const backLabel = returnRoute.startsWith("#persons") ? "Back to people" : "Back to meetings";
+  const backButton = create("button", "back-button", backLabel);
   backButton.type = "button";
   backButton.prepend(icon("chevron"));
-  backButton.addEventListener("click", showMeetingList);
+  backButton.addEventListener("click", () => returnToPreviousRoute(() => showMeetingList()));
   header.append(backButton);
   const titleRow = create("div", "detail-title-row");
   const title = create("div", "detail-title");
-  title.append(create("h2", "", meeting.title || "Untitled meeting"));
+  const heading = create("h2", "", meeting.title || "Untitled meeting");
+  heading.tabIndex = -1;
+  title.append(heading);
   const meta = create("div", "detail-title-meta");
   const people = meetingPeople(meeting);
   if (people.length) meta.append(renderAvatars(people, 5));
@@ -894,9 +1003,7 @@ function renderDetail(meeting) {
   const duration = durationLabel(durationMinutes(meeting));
   if (duration) { const item = create("span"); item.append(icon("clock"), document.createTextNode(duration)); meta.append(item); }
   title.append(meta);
-  const actions = create("div", "detail-header-actions");
-  const moreButton = setIcon(create("button", "icon-button"), "more"); moreButton.type = "button"; moreButton.title = "More options"; moreButton.setAttribute("aria-label", "More options");
-  actions.append(moreButton); titleRow.append(title, actions); header.append(titleRow);
+  titleRow.append(title); header.append(titleRow);
   const tabs = create("nav", "detail-tabs", undefined);
   tabs.setAttribute("aria-label", "Meeting details");
   tabs.setAttribute("role", "tablist");
@@ -914,6 +1021,7 @@ function renderDetail(meeting) {
       const previousTab = state.activeTab;
       state.activeTab = key;
       renderActiveTab(meeting, previousTab);
+      setRoute(meetingRoute(meeting.id, state.activeTab), "replace");
     });
     tabs.append(tab);
   });
@@ -945,22 +1053,21 @@ function personRequestParams(extra = {}) {
   return params;
 }
 
-async function selectPerson(personId, returnContext = null) {
+async function selectPerson(personId, returnContext = null, { historyMode = "push", initialTab = "overview" } = {}) {
   const directoryPerson = state.persons.find((person) => person.id === personId);
   transitionPage(() => {
     state.activeSection = "persons";
     state.selectedPersonId = personId;
     state.personReturnContext = returnContext;
-    state.personDetailTab = "overview";
+    state.personDetailTab = PERSON_TAB_ORDER.includes(initialTab) ? initialTab : "overview";
     state.personContributionQuery = "";
     state.personActionStatuses.clear();
     elements.shell.classList.add("detail-view");
     elements.meetingColumn.classList.add("hidden");
     elements.peopleColumn.classList.remove("hidden");
-    elements.meetingsNav.classList.remove("active");
-    elements.personsNav.classList.add("active");
-    window.history.replaceState(null, "", "#persons");
-    document.title = "Memoir · Persons";
+    setActiveNavigation("persons");
+    setRoute(personRoute(personId, state.personDetailTab), historyMode);
+    document.title = "Memoir · People";
     elements.detail.classList.remove("hidden");
     elements.detail.replaceChildren();
     const loading = create("div", "detail-body");
@@ -988,22 +1095,30 @@ async function selectPerson(personId, returnContext = null) {
       overviewActionItems: actionItems.items,
     };
     renderPersonDetail();
+    elements.detail.querySelector("h2")?.focus({ preventScroll: true });
   } catch (error) {
     showToast(error.message);
     await returnFromPersonDetail();
   }
 }
 
-function showPeopleList() {
+function showPeopleList({ historyMode = "replace" } = {}) {
   transitionPage(() => {
+    state.activeSection = "persons";
     state.selectedPersonId = null;
     state.personReturnContext = null;
     state.personDetail = null;
     elements.shell.classList.remove("detail-view");
     elements.detail.classList.add("hidden");
     elements.detail.replaceChildren();
+    elements.meetingColumn.classList.add("hidden");
+    elements.peopleColumn.classList.remove("hidden");
+    setActiveNavigation("persons");
+    document.title = "Memoir · People";
     renderPersonDirectory();
+    setRoute(personRoute(), historyMode);
     window.scrollTo({ top: 0 });
+    elements.peopleColumn.querySelector("h1")?.focus({ preventScroll: true });
   }, "back");
 }
 
@@ -1027,18 +1142,21 @@ async function returnFromPersonDetail() {
     state.activeTab = context.meetingTab || "participants";
     elements.meetingColumn.classList.remove("hidden");
     elements.peopleColumn.classList.add("hidden");
-    elements.meetingsNav.classList.add("active");
-    elements.personsNav.classList.remove("active");
-    window.history.replaceState(null, "", "#meetings");
+    setActiveNavigation("meetings");
+    setRoute(meetingRoute(meeting.id, state.activeTab), "replace");
     document.title = "Memoir · Meetings";
     renderDetail(meeting);
     window.scrollTo({ top: 0 });
+    elements.detail.querySelector("h2")?.focus({ preventScroll: true });
   }, "back");
 }
 
 async function openMeetingFromPerson(meetingId) {
+  const meeting = state.meetings.find((item) => item.id === meetingId);
+  if (meeting) return selectMeeting(meetingId);
   await showSection("meetings");
   await loadMeetings(meetingId);
+  if (state.selectedMeetingId) setRoute(meetingRoute(state.selectedMeetingId, state.activeTab), "replace");
 }
 
 function personMeetingCard(meeting) {
@@ -1348,18 +1466,20 @@ function renderPersonDetail() {
   elements.shell.classList.add("detail-view");
   const header = create("header", "detail-header person-profile-header");
   const returnContext = state.personReturnContext;
-  const backLabel = returnContext ? `Back to ${returnContext.meetingTitle}` : "Back to persons";
+  const backLabel = returnContext ? `Back to ${returnContext.meetingTitle}` : "Back to people";
   const backButton = create("button", "back-button", backLabel);
   backButton.type = "button";
   backButton.prepend(icon("chevron"));
-  backButton.addEventListener("click", returnFromPersonDetail);
+  backButton.addEventListener("click", () => returnToPreviousRoute(() => returnFromPersonDetail()));
   header.append(backButton);
 
   const identity = create("div", "person-profile-hero");
   const avatar = create("span", "person-avatar", initials(person.name));
   avatar.style.setProperty("--avatar-color", avatarColor(person.name));
   const title = create("div", "person-profile-copy");
-  title.append(create("h2", "", person.name));
+  const heading = create("h2", "", person.name);
+  heading.tabIndex = -1;
+  title.append(heading);
   title.append(create("p", "person-last-seen", stats.last_participated_at ? `Last participated ${formatDate(stats.last_participated_at, false)}` : "No meeting participation yet"));
   identity.append(avatar, title);
   header.append(identity);
@@ -1381,6 +1501,7 @@ function renderPersonDetail() {
       const previousTab = state.personDetailTab;
       state.personDetailTab = key;
       renderPersonActiveTab(previousTab);
+      setRoute(personRoute(state.selectedPersonId, state.personDetailTab), "replace");
     });
     tabs.append(tab);
   });
@@ -1451,6 +1572,7 @@ function openActionStatusEditor(item, returnFocus, context = {}) {
   });
 
   elements.actionStatusModal.classList.remove("hidden");
+  elements.shell.inert = true;
   document.body.style.overflow = "hidden";
   window.setTimeout(() => elements.actionItemContent.focus(), 50);
 }
@@ -1466,7 +1588,10 @@ function openPersonActionStatusEditor(item, returnFocus) {
 function closeActionStatusEditor(restoreFocus = true) {
   elements.actionStatusModal.classList.add("hidden");
   setActionDeleteConfirmation(false);
-  if (elements.modal.classList.contains("hidden")) document.body.style.overflow = "";
+  if (elements.modal.classList.contains("hidden")) {
+    elements.shell.inert = false;
+    document.body.style.overflow = "";
+  }
   if (restoreFocus) actionStatusReturnFocus?.focus();
   actionStatusReturnFocus = null;
   editingActionItem = null;
@@ -1592,18 +1717,81 @@ function renderPersonDetailAtCurrentPosition() {
 }
 
 function openModal() {
-  modalReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  const drawerWasOpen = mobileNavigation.matches && elements.sidebar.classList.contains("open");
+  modalReturnFocus = drawerWasOpen
+    ? sidebarReturnFocus
+    : document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  if (drawerWasOpen) closeSidebar({ restoreFocus: false });
   elements.formError.classList.add("hidden");
   elements.modal.classList.remove("hidden");
+  elements.shell.inert = true;
   document.body.style.overflow = "hidden";
   window.setTimeout(() => document.querySelector("#title").focus(), 50);
 }
 
-function closeModal() {
+function uploadFieldValidationMessage(field) {
+  if (field.required && !field.value.trim()) {
+    return field.id === "title" ? "Enter a meeting title." : "Paste or upload a transcript.";
+  }
+  if (field.validity.badInput || field.validity.typeMismatch) {
+    return field.id === "meeting-start" ? "Enter a valid date and time." : "Enter a valid value.";
+  }
+  if (field.validity.rangeUnderflow) return "Duration must be at least 1 minute.";
+  if (field.validity.stepMismatch) return "Enter a whole number of minutes.";
+  return field.validity.valid ? "" : "Check this value.";
+}
+
+function setUploadFieldError(field, message) {
+  const helper = document.querySelector(`#${field.id}-error`);
+  const hasError = Boolean(message);
+  field.closest(".field").classList.toggle("has-error", hasError);
+  field.setAttribute("aria-invalid", String(hasError));
+  helper.textContent = message;
+  helper.classList.toggle("hidden", !hasError);
+  if (hasError) {
+    field.setAttribute("aria-describedby", helper.id);
+    field.setAttribute("aria-errormessage", helper.id);
+  } else {
+    field.removeAttribute("aria-describedby");
+    field.removeAttribute("aria-errormessage");
+  }
+  return !hasError;
+}
+
+function validateUploadField(field) {
+  return setUploadFieldError(field, uploadFieldValidationMessage(field));
+}
+
+function validateUploadForm() {
+  let firstInvalid = null;
+  uploadValidationFields.forEach((field) => {
+    if (!validateUploadField(field) && !firstInvalid) firstInvalid = field;
+  });
+  firstInvalid?.focus();
+  return !firstInvalid;
+}
+
+function uploadFormHasDraft() {
+  return ["#title", "#description", "#meeting-start", "#duration", "#raw-transcript"]
+    .some((selector) => document.querySelector(selector).value.trim()) || Boolean(elements.fileInput.files.length);
+}
+
+function resetUploadForm() {
+  elements.form.reset();
+  uploadValidationFields.forEach((field) => setUploadFieldError(field, ""));
+  elements.fileLabel.textContent = "Choose a transcript file";
+  elements.formError.classList.add("hidden");
+}
+
+function closeModal({ force = false } = {}) {
+  if (!force && uploadFormHasDraft() && !window.confirm("Discard this meeting draft? Your entered transcript and meeting details will be lost.")) return false;
+  if (!force) resetUploadForm();
   elements.modal.classList.add("hidden");
+  if (elements.actionStatusModal.classList.contains("hidden")) elements.shell.inert = false;
   document.body.style.overflow = "";
   modalReturnFocus?.focus();
   modalReturnFocus = null;
+  return true;
 }
 
 async function useFile(file) {
@@ -1619,6 +1807,8 @@ async function useFile(file) {
     elements.transcript.value = await file.text();
     elements.fileLabel.textContent = file.name;
     if (!document.querySelector("#title").value) document.querySelector("#title").value = file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ");
+    validateUploadField(elements.transcript);
+    validateUploadField(document.querySelector("#title"));
     elements.formError.classList.add("hidden");
   } catch {
     elements.formError.textContent = "The selected file could not be read as text.";
@@ -1633,8 +1823,8 @@ function bindDropTarget(target, onFile) {
 }
 
 document.querySelectorAll("[data-open-upload]").forEach((button) => button.addEventListener("click", openModal));
-document.querySelector("#modal-close").addEventListener("click", closeModal);
-document.querySelector("#cancel-button").addEventListener("click", closeModal);
+document.querySelector("#modal-close").addEventListener("click", () => closeModal());
+document.querySelector("#cancel-button").addEventListener("click", () => closeModal());
 elements.modal.addEventListener("click", (event) => { if (event.target === elements.modal) closeModal(); });
 document.querySelector("#action-status-close").addEventListener("click", () => closeActionStatusEditor());
 document.querySelector("#action-status-cancel").addEventListener("click", () => closeActionStatusEditor());
@@ -1646,8 +1836,23 @@ document.addEventListener("click", (event) => { if (!event.target.closest(".work
 
 elements.fileInput.addEventListener("change", () => useFile(elements.fileInput.files[0]));
 bindDropTarget(elements.modalFileZone, useFile);
+uploadValidationFields.forEach((field) => {
+  field.addEventListener("blur", () => validateUploadField(field));
+  field.addEventListener("input", () => {
+    if (field.closest(".field").classList.contains("has-error")) validateUploadField(field);
+  });
+});
 
 [elements.search, elements.dateFilter, elements.statusFilter].forEach((control) => control.addEventListener("input", () => { state.meetingPage = 1; renderMeetingList(); }));
+document.querySelector("#clear-meeting-filters").addEventListener("click", () => {
+  elements.search.value = "";
+  elements.dateFilter.value = "all";
+  elements.statusFilter.value = "all";
+  state.meetingPage = 1;
+  renderMeetingList();
+  elements.search.focus();
+});
+document.querySelector("#retry-meetings").addEventListener("click", () => loadMeetings());
 elements.personSearch.addEventListener("input", renderPersonDirectory);
 elements.personOpenActionsFilter.addEventListener("click", () => {
   state.personOpenActionsOnly = !state.personOpenActionsOnly;
@@ -1656,16 +1861,60 @@ elements.personOpenActionsFilter.addEventListener("click", () => {
   renderPersonDirectory();
 });
 elements.personSort.addEventListener("change", renderPersonDirectory);
+document.querySelector("#clear-person-filters").addEventListener("click", () => {
+  elements.personSearch.value = "";
+  elements.personSort.value = "recent";
+  state.personOpenActionsOnly = false;
+  elements.personOpenActionsFilter.classList.remove("active");
+  elements.personOpenActionsFilter.setAttribute("aria-pressed", "false");
+  renderPersonDirectory();
+  elements.personSearch.focus();
+});
+document.querySelector("#retry-people").addEventListener("click", () => loadPersons());
 elements.viewAllMeetings.addEventListener("click", () => setAllMeetingsExpanded(!state.showAllMeetings));
 
-function openSidebar() { elements.sidebar.classList.add("open"); elements.sidebarScrim.classList.remove("hidden"); }
+function setSidebarTriggerState(expanded) {
+  [document.querySelector("#menu-button"), document.querySelector("#people-menu-button")]
+    .forEach((button) => button.setAttribute("aria-expanded", String(expanded)));
+}
+
+function syncSidebarAccessibility() {
+  if (!mobileNavigation.matches && elements.sidebar.classList.contains("open")) {
+    elements.sidebar.classList.remove("open");
+    elements.sidebarScrim.classList.add("hidden");
+    if (elements.modal.classList.contains("hidden") && elements.actionStatusModal.classList.contains("hidden")) document.body.style.overflow = "";
+    sidebarReturnFocus = null;
+  }
+  const isOpen = elements.sidebar.classList.contains("open");
+  const isHidden = mobileNavigation.matches && !isOpen;
+  elements.sidebar.inert = isHidden;
+  elements.sidebar.setAttribute("aria-hidden", String(isHidden));
+  setSidebarTriggerState(isOpen);
+}
+
+function openSidebar() {
+  sidebarReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  elements.sidebar.classList.add("open");
+  elements.sidebarScrim.classList.remove("hidden");
+  document.body.style.overflow = "hidden";
+  syncSidebarAccessibility();
+  window.setTimeout(() => document.querySelector("#sidebar-close").focus(), 0);
+}
 document.querySelector("#menu-button").addEventListener("click", openSidebar);
 document.querySelector("#people-menu-button").addEventListener("click", openSidebar);
-function closeSidebar() { elements.sidebar.classList.remove("open"); elements.sidebarScrim.classList.add("hidden"); }
+function closeSidebar({ restoreFocus = true } = {}) {
+  elements.sidebar.classList.remove("open");
+  elements.sidebarScrim.classList.add("hidden");
+  document.body.style.overflow = "";
+  syncSidebarAccessibility();
+  if (restoreFocus) sidebarReturnFocus?.focus();
+  sidebarReturnFocus = null;
+}
 document.querySelector("#sidebar-close").addEventListener("click", closeSidebar);
-elements.sidebarScrim.addEventListener("click", closeSidebar);
-elements.meetingsNav.addEventListener("click", (event) => { event.preventDefault(); showSection("meetings"); closeSidebar(); });
-elements.personsNav.addEventListener("click", (event) => { event.preventDefault(); showSection("persons"); closeSidebar(); });
+elements.sidebarScrim.addEventListener("click", () => closeSidebar());
+elements.meetingsNav.addEventListener("click", (event) => { event.preventDefault(); showSection("meetings"); closeSidebar({ restoreFocus: false }); });
+elements.personsNav.addEventListener("click", (event) => { event.preventDefault(); showSection("persons"); closeSidebar({ restoreFocus: false }); });
+mobileNavigation.addEventListener("change", syncSidebarAccessibility);
 
 elements.actionStatusForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -1774,8 +2023,9 @@ document.addEventListener("keydown", (event) => {
     : !elements.modal.classList.contains("hidden")
       ? elements.modal
       : null;
-  if (event.key === "Tab" && activeModal) {
-    const focusable = [...activeModal.querySelectorAll("button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex='-1'])")]
+  const focusScope = activeModal || (mobileNavigation.matches && elements.sidebar.classList.contains("open") ? elements.sidebar : null);
+  if (event.key === "Tab" && focusScope) {
+    const focusable = [...focusScope.querySelectorAll("button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), a[href], [tabindex]:not([tabindex='-1'])")]
       .filter((element) => !element.hidden && element.getClientRects().length);
     if (!focusable.length) return;
     const first = focusable[0];
@@ -1790,8 +2040,8 @@ document.addEventListener("keydown", (event) => {
     else if (!elements.modal.classList.contains("hidden")) closeModal();
     else if (elements.sidebar.classList.contains("open")) closeSidebar();
     else if (elements.shell.classList.contains("detail-view")) {
-      if (state.activeSection === "persons") returnFromPersonDetail();
-      else showMeetingList();
+      if (state.activeSection === "persons") returnToPreviousRoute(() => returnFromPersonDetail());
+      else returnToPreviousRoute(() => showMeetingList());
     }
   }
 });
@@ -1799,6 +2049,7 @@ document.addEventListener("keydown", (event) => {
 elements.form.addEventListener("submit", async (event) => {
   event.preventDefault();
   elements.formError.classList.add("hidden");
+  if (!validateUploadForm()) return;
   elements.submitButton.disabled = true;
   const originalContent = elements.submitButton.innerHTML;
   elements.submitButton.textContent = "Generating insights…";
@@ -1815,13 +2066,13 @@ elements.form.addEventListener("submit", async (event) => {
   };
   try {
     const body = await request("/meetings/summarize", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-    closeModal();
-    elements.form.reset();
-    elements.fileLabel.textContent = "Choose a transcript file";
+    resetUploadForm();
+    closeModal({ force: true });
     await Promise.all([
       loadMeetings(body.meeting_id),
       loadPersons(),
     ]);
+    if (state.selectedMeetingId) setRoute(meetingRoute(state.selectedMeetingId, state.activeTab));
     showToast("Meeting insights generated and saved.");
   } catch (error) {
     elements.formError.textContent = error.message;
@@ -1832,10 +2083,42 @@ elements.form.addEventListener("submit", async (event) => {
   }
 });
 
-async function init() {
-  await loadWorkspaces();
-  await Promise.all([loadMeetings(), loadPersons()]);
-  if (window.location.hash === "#persons") showSection("persons");
+async function applyCurrentRoute({ replaceDefault = false } = {}) {
+  const parts = window.location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+  const section = parts[0];
+  let itemId = null;
+  let tab = null;
+  try {
+    itemId = parts[1] ? decodeURIComponent(parts[1]) : null;
+    tab = parts[2] ? decodeURIComponent(parts[2]) : null;
+  } catch {
+    setRoute("meetings", "replace");
+    showSection("meetings", { historyMode: "none" });
+    showToast("That link is not valid.");
+    return;
+  }
+
+  if (section === "persons") {
+    if (itemId) await selectPerson(itemId, null, { historyMode: "none", initialTab: tab || "overview" });
+    else showSection("persons", { historyMode: "none" });
+    return;
+  }
+
+  if (section === "meetings" && itemId) {
+    selectMeeting(itemId, { historyMode: "none", initialTab: tab || "overview" });
+    return;
+  }
+
+  showSection("meetings", { historyMode: "none" });
+  if (replaceDefault || section !== "meetings") setRoute("meetings", "replace");
 }
 
+async function init() {
+  syncSidebarAccessibility();
+  await loadWorkspaces();
+  await Promise.all([loadMeetings(), loadPersons()]);
+  await applyCurrentRoute({ replaceDefault: true });
+}
+
+window.addEventListener("popstate", () => applyCurrentRoute());
 init();
