@@ -942,6 +942,7 @@ a {
 
 .row-more {
   color: var(--md-sys-color-on-surface-variant);
+  transform: rotate(-90deg);
 }
 
 .status-badge {
@@ -1078,6 +1079,39 @@ a {
   color: var(--md-sys-color-on-surface-variant);
   font-size: 14px;
   line-height: 1.65;
+}
+
+.load-error {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  gap: 20px;
+  align-items: center;
+  padding: 24px;
+  border: 1px solid color-mix(in srgb, var(--md-sys-color-error) 28%, transparent);
+  border-radius: var(--md-sys-shape-extra-large);
+  color: var(--md-sys-color-on-error-container);
+  background: color-mix(in srgb, var(--md-sys-color-error-container) 58%, var(--md-sys-color-surface-container-lowest));
+}
+
+.load-error .empty-illustration {
+  margin: 0;
+  color: var(--md-sys-color-on-error-container);
+  background: var(--md-sys-color-error-container);
+}
+
+.load-error h2,
+.load-error p {
+  margin: 0;
+}
+
+.load-error h2 {
+  font: var(--md-sys-typescale-title-large);
+}
+
+.load-error p {
+  margin-top: 4px;
+  color: var(--md-sys-color-on-surface-variant);
+  font: var(--md-sys-typescale-body-medium);
 }
 
 /* Meeting detail */
@@ -2907,6 +2941,7 @@ a {
 }
 
 .modal-file-zone {
+  position: relative;
   display: flex;
   min-height: 112px;
   flex-wrap: wrap;
@@ -2920,6 +2955,24 @@ a {
   background: var(--md-sys-color-surface-container-low);
   text-align: center;
   transition: background-color 180ms var(--md-sys-motion-standard), border-color 180ms var(--md-sys-motion-standard);
+}
+
+.file-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.file-input:focus-visible {
+  outline: 0;
+}
+
+.modal-file-zone:has(.file-input:focus-visible) {
+  outline: 3px solid color-mix(in srgb, var(--md-sys-color-primary) 45%, transparent);
+  outline-offset: 2px;
 }
 
 .modal-file-zone:hover,
@@ -3246,6 +3299,20 @@ a {
     right: 16px;
     bottom: 16px;
     max-width: calc(100vw - 32px);
+  }
+
+  .load-error {
+    grid-template-columns: 52px minmax(0, 1fr);
+  }
+
+  .load-error .empty-illustration {
+    width: 52px;
+    height: 52px;
+  }
+
+  .load-error .secondary-button {
+    grid-column: 1 / -1;
+    justify-self: start;
   }
 }
 

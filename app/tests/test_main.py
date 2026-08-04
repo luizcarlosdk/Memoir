@@ -109,7 +109,7 @@ def test_frontend_page_is_served(client: TestClient) -> None:
     assert 'id="duration"' in response.text
     assert response.text.count('class="nav-item') == 2
     assert '<span data-icon="calendar"></span><span>Meetings</span>' in response.text
-    assert '<span data-icon="people"></span><span>Persons</span>' in response.text
+    assert '<span data-icon="people"></span><span>People</span>' in response.text
     assert 'id="people-list"' in response.text
     assert 'id="person-open-actions-filter"' in response.text
     assert 'id="person-sort"' in response.text
@@ -117,6 +117,15 @@ def test_frontend_page_is_served(client: TestClient) -> None:
     assert 'id="action-item-content"' in response.text
     assert 'id="action-assignee-select"' in response.text
     assert 'id="action-delete-confirm"' in response.text
+    assert 'id="meetings-error"' in response.text
+    assert 'id="retry-meetings"' in response.text
+    assert 'id="clear-meeting-filters"' in response.text
+    assert 'id="people-error"' in response.text
+    assert 'id="retry-people"' in response.text
+    assert 'id="clear-person-filters"' in response.text
+    assert 'aria-controls="sidebar" aria-expanded="false"' in response.text
+    assert 'aria-live="polite" aria-atomic="true"' in response.text
+    assert "TXT, MD, JSON, SRT, or VTT" in response.text
 
     script = client.get("/app.js")
     assert script.status_code == 200
@@ -135,6 +144,16 @@ def test_frontend_page_is_served(client: TestClient) -> None:
     assert 'BLOCKED: "blocked"' in script.text
     assert 'create("ul", "person-todo-list")' in script.text
     assert "loadMeetings(body.meeting_id),\n      loadPersons()," in script.text
+    assert 'function setRoute(path, historyMode = "push")' in script.text
+    assert 'window.addEventListener("popstate"' in script.text
+    assert 'setRoute(meetingRoute(meetingId, state.activeTab), historyMode)' in script.text
+    assert 'setRoute(personRoute(personId, state.personDetailTab), historyMode)' in script.text
+    assert 'elements.meetingsErrorMessage.textContent = state.meetingsLoadError' in script.text
+    assert 'elements.peopleErrorMessage.textContent = state.personsLoadError' in script.text
+    assert 'window.confirm("Discard this meeting draft?' in script.text
+    assert "elements.sidebar.inert = isHidden" in script.text
+    assert "elements.shell.inert = true" in script.text
+    assert "More options" not in script.text
 
 
 def test_workspaces_are_available_for_switching(client: TestClient) -> None:
