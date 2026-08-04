@@ -39,6 +39,23 @@ def test_frontend_ux_recovery_and_navigation_contracts() -> None:
     assert "elements.shell.inert = true" in script
     assert "More options" not in script
 
+    # Keep visual meaning explicit and the collection scannable across layouts.
+    assert '<span class="overline nav-label">Library</span>' in html
+    assert 'class="meeting-table-header"' in html
+    assert "sidebar-footer" not in html
+    assert "page-actions" not in html
+    assert 'className: "meeting-generic"' in script
+    assert "const accents" not in script
+    assert 'create("span", `status-badge ${processed ? "processed" : "processing"}`)' in script
+    assert 'classList.toggle("hidden", state.meetings.length <= 3)' in script
+    assert 'element.dataset.label = label' in script
+    assert "--memoir-control-height: 48px" in styles
+    assert "--memoir-content-measure: 70ch" in styles
+    assert ".recent-section.hidden + .all-meetings-section" in styles
+    assert ".meeting-table-header" in styles
+    assert ".row-date::before" in styles
+    assert "processed-check" not in styles
+
     assert '<form id="summary-form" novalidate>' in html
     for field_id in ("title", "meeting-start", "duration", "raw-transcript"):
         assert f'id="{field_id}-error" class="field-error hidden"' in html
