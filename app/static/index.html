@@ -21,7 +21,7 @@
         <button class="primary-button sidebar-create" type="button" data-open-upload><span data-icon="plus"></span>New meeting</button>
 
         <nav class="primary-nav" aria-label="Primary navigation">
-          <span class="overline nav-label">Workspace</span>
+          <span class="overline nav-label">Library</span>
           <a class="nav-item active" id="meetings-nav" href="#meetings" data-section="meetings" aria-current="page"><span data-icon="calendar"></span><span>Meetings</span></a>
           <a class="nav-item" id="persons-nav" href="#persons" data-section="persons"><span data-icon="people"></span><span>People</span></a>
         </nav>
@@ -37,11 +37,6 @@
             <div id="workspace-menu" class="workspace-menu hidden" role="listbox" aria-label="Choose workspace"></div>
           </div>
         </div>
-
-        <footer class="sidebar-footer">
-          <span data-icon="sparkles"></span>
-          <p>Turn every conversation into decisions and next steps.</p>
-        </footer>
       </header>
 
       <div id="sidebar-scrim" class="sidebar-scrim hidden" aria-hidden="true"></div>
@@ -55,10 +50,7 @@
 
         <div class="content-wrap">
           <header class="page-heading">
-            <div><p class="overline purple">Your workspace</p><h1 tabindex="-1">Meetings</h1><p>All your conversations, decisions, and next steps centered in one space.</p></div>
-            <div class="page-actions">
-              <button class="primary-button" type="button" data-open-upload><span data-icon="plus"></span>New meeting</button>
-            </div>
+            <div><p class="overline primary">Your workspace</p><h1 tabindex="-1">Meetings</h1><p>All your conversations, decisions, and next steps centered in one space.</p></div>
           </header>
 
           <section class="recent-section" aria-labelledby="recent-meetings-title">
@@ -80,6 +72,7 @@
             </header>
 
             <div id="loading-state" class="all-meeting-list" role="status" aria-label="Loading meetings">
+              <div class="meeting-table-header" aria-hidden="true"><span></span><span>Meeting</span><span class="header-participants">People</span><span>Date</span><span>Duration</span><span>Actions</span><span class="header-decisions">Decisions</span><span>Status</span><span></span></div>
               <div class="meeting-row skeleton-card"></div><div class="meeting-row skeleton-card"></div><div class="meeting-row skeleton-card"></div>
             </div>
             <div id="meeting-list" class="all-meeting-list hidden"></div>
@@ -105,7 +98,7 @@
 
         <div class="content-wrap">
           <header class="page-heading">
-            <div><p class="overline purple">Your workspace</p><h1 tabindex="-1">People</h1><p>Explore who participated, what they said, and what they own.</p></div>
+            <div><p class="overline primary">Your workspace</p><h1 tabindex="-1">People</h1><p>Explore who participated, what they said, and what they own.</p></div>
           </header>
 
           <section class="people-directory" aria-labelledby="people-directory-title">
@@ -138,7 +131,7 @@
 
     <div id="modal-backdrop" class="modal-backdrop hidden" role="presentation">
       <section class="upload-modal" role="dialog" aria-modal="true" aria-labelledby="upload-title" aria-describedby="upload-description">
-        <header class="modal-header"><div><p class="overline purple">New meeting</p><h2 id="upload-title">Upload a transcript</h2></div><button id="modal-close" class="icon-button" type="button" aria-label="Close" data-icon="close"></button></header>
+        <header class="modal-header"><div><p class="overline primary">New meeting</p><h2 id="upload-title">Upload a transcript</h2></div><button id="modal-close" class="icon-button" type="button" aria-label="Close" data-icon="close"></button></header>
         <form id="summary-form" novalidate>
           <p id="upload-description" class="modal-description">Add a transcript and Memoir will organize the summary, decisions, and action items.</p>
           <div class="form-grid">
@@ -157,7 +150,7 @@
 
     <div id="action-status-backdrop" class="modal-backdrop hidden" role="presentation">
       <section class="status-modal" role="dialog" aria-modal="true" aria-labelledby="action-status-title" aria-describedby="action-status-content">
-        <header class="modal-header"><div><p class="overline purple action-status-overline"><span data-icon="check-square"></span><span>Action item</span></p><h2 id="action-status-title">Edit action item</h2></div><button id="action-status-close" class="icon-button" type="button" aria-label="Close" data-icon="close"></button></header>
+        <header class="modal-header"><div><p class="overline primary action-status-overline"><span data-icon="check-square"></span><span>Action item</span></p><h2 id="action-status-title">Edit action item</h2></div><button id="action-status-close" class="icon-button" type="button" aria-label="Close" data-icon="close"></button></header>
         <div class="action-status-context"><p id="action-status-content" class="visually-hidden"></p><div id="action-status-meeting" class="action-status-meeting"></div></div>
         <form id="action-status-form">
           <div class="action-item-editor-fields">

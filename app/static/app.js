@@ -170,12 +170,12 @@ function animateIterable(container, selector) {
   container.querySelectorAll(selector).forEach((item, index) => {
     item.animate(
       [
-        { opacity: 0, transform: "translateY(10px) scale(.985)" },
-        { opacity: 1, transform: "translateY(0) scale(1)" },
+        { opacity: 0, transform: "translateY(4px)" },
+        { opacity: 1, transform: "translateY(0)" },
       ],
       {
-        duration: MOTION.duration.medium,
-        delay: Math.min(index * 35, 210),
+        duration: MOTION.duration.short,
+        delay: Math.min(index * 20, 120),
         easing: MOTION.easing.decelerate,
         fill: "both",
       },
@@ -261,34 +261,43 @@ function overdueActionCount(meeting) {
 
 function meetingVisual(meeting) {
   const platform = String(meeting.platform || "").toLocaleLowerCase();
-  if (platform.includes("zoom")) return { icon: "panel", className: "accent-blue" };
-  if (platform.includes("google")) return { icon: "people", className: "accent-teal" };
-  const accents = [
-    { icon: "calendar", className: "accent-violet" },
-    { icon: "sparkles", className: "accent-orange" },
-    { icon: "people", className: "accent-blue" },
-    { icon: "calendar", className: "accent-rose" },
-  ];
-  const source = meeting.id || meeting.title || "meeting";
-  const hash = [...source].reduce((sum, character) => sum + character.charCodeAt(0), 0);
-  return accents[hash % accents.length];
+  if (platform.includes("zoom")) return { icon: "panel", className: "platform-zoom" };
+  if (platform.includes("google")) return { icon: "people", className: "platform-google" };
+  return { icon: "calendar", className: "meeting-generic" };
 }
 
 function renderStatusBadge(meeting) {
   const status = meetingStatus(meeting);
-  if (status === "processed") return null;
-  const badge = create("span", `status-badge ${status === "processing" ? "processing" : ""}`);
-  badge.append(create("span", "status-dot"), document.createTextNode(status === "processed" ? "Processed" : "Processing"));
+  const processed = status === "processed";
+  const badge = create("span", `status-badge ${processed ? "processed" : "processing"}`);
+  badge.append(icon(processed ? "check" : "clock"), document.createTextNode(processed ? "Processed" : "Processing"));
   return badge;
 }
 
 function renderStatusIndicator(meeting) {
-  const badge = renderStatusBadge(meeting);
-  if (badge) return badge;
-  const indicator = icon("check", "processed-check");
-  indicator.title = "Processed";
-  indicator.setAttribute("aria-label", "Processed");
-  return indicator;
+  return renderStatusBadge(meeting);
+}
+
+function renderMeetingTableHeader() {
+  const header = create("div", "meeting-table-header");
+  [
+    ["", ""],
+    ["Meeting", ""],
+    ["People", "header-participants"],
+    ["Date", ""],
+    ["Duration", ""],
+    ["Actions", ""],
+    ["Decisions", "header-decisions"],
+    ["Status", ""],
+    ["", ""],
+  ].forEach(([label, className]) => header.append(create("span", className, label)));
+  header.setAttribute("aria-hidden", "true");
+  return header;
+}
+
+function labelMeetingCell(element, label) {
+  element.dataset.label = label;
+  return element;
 }
 
 function makeMeetingInteractive(element, meeting) {
@@ -612,7 +621,7 @@ function renderMeetingList() {
   elements.viewAllMeetings.textContent = state.showAllMeetings ? "Show less" : "View all";
   elements.viewAllMeetings.setAttribute("aria-expanded", String(state.showAllMeetings));
   elements.viewAllMeetings.classList.toggle("hidden", state.meetings.length <= 3);
-  elements.recentList.closest(".recent-section").classList.toggle("hidden", state.meetings.length === 0);
+  elements.recentList.closest(".recent-section").classList.toggle("hidden", state.meetings.length <= 3);
 
   state.meetings.slice(0, 3).forEach((meeting) => {
     const people = meetingPeople(meeting);
@@ -620,13 +629,11 @@ function renderMeetingList() {
     const card = create("article", "recent-meeting-card");
     const top = create("div", "recent-card-top");
     top.append(icon(visual.icon, `meeting-type ${visual.className}`));
-    const exceptionalStatus = renderStatusBadge(meeting);
-    if (exceptionalStatus) top.append(exceptionalStatus);
+    top.append(renderStatusBadge(meeting));
     const title = create("h3", "", meeting.title || "Untitled meeting");
     const meta = create("div", "recent-card-meta");
     const timestamp = meeting.scheduled_started_at || meeting.created_at;
     [formatDate(timestamp, false), formatTime(timestamp), durationLabel(durationMinutes(meeting))].filter(Boolean).forEach((value) => meta.append(create("span", "", value)));
-    if (meetingStatus(meeting) === "processed") meta.append(renderStatusIndicator(meeting));
     const participants = create("div", "recent-participants");
     if (people.length) participants.append(renderAvatars(people, 4));
     else participants.append(create("span", "no-participants", "No speakers recorded"));
@@ -648,6 +655,7 @@ function renderMeetingList() {
   const pageCount = Math.max(1, Math.ceil(meetings.length / pageSize));
   state.meetingPage = Math.min(state.meetingPage, pageCount);
   const start = (state.meetingPage - 1) * pageSize;
+  if (meetings.length) elements.list.append(renderMeetingTableHeader());
   meetings.slice(start, start + pageSize).forEach((meeting) => {
     const people = meetingPeople(meeting);
     const visual = meetingVisual(meeting);
@@ -664,10 +672,10 @@ function renderMeetingList() {
     const decisions = create("span", "row-stat row-decisions"); decisions.append(icon("sparkles"), document.createTextNode(`${decisionsTotal} ${decisionsTotal === 1 ? "decision" : "decisions"}`));
     row.append(
       participantCell,
-      create("time", "row-date", formatDate(timestamp) || "No date"),
-      create("span", "row-duration", durationLabel(durationMinutes(meeting)) || "—"),
-      actions,
-      decisions,
+      labelMeetingCell(create("time", "row-date", formatDate(timestamp) || "No date"), "Date"),
+      labelMeetingCell(create("span", "row-duration", durationLabel(durationMinutes(meeting)) || "—"), "Duration"),
+      labelMeetingCell(actions, "Actions"),
+      labelMeetingCell(decisions, "Decisions"),
       renderStatusIndicator(meeting),
       icon("chevron", "row-more"),
     );
@@ -743,7 +751,7 @@ function renderAvatars(names, limit = 4) {
   return stack;
 }
 
-function insightCard(title, iconName, body, countLabel = null, accent = "purple") {
+function insightCard(title, iconName, body, countLabel = null, accent = "primary") {
   const card = create("section", `insight-card ${accent}`);
   const heading = create("header", "insight-card-heading");
   heading.append(icon(iconName), create("h3", "", title));
