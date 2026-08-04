@@ -140,6 +140,7 @@ const elements = {
   personOpenActionsFilter: document.querySelector("#person-open-actions-filter"),
   personSort: document.querySelector("#person-sort"),
 };
+const uploadValidationFields = [...elements.form.querySelectorAll("[data-validate]")];
 
 function setIcon(element, name) {
   element.dataset.icon = name;
@@ -1728,6 +1729,48 @@ function openModal() {
   window.setTimeout(() => document.querySelector("#title").focus(), 50);
 }
 
+function uploadFieldValidationMessage(field) {
+  if (field.required && !field.value.trim()) {
+    return field.id === "title" ? "Enter a meeting title." : "Paste or upload a transcript.";
+  }
+  if (field.validity.badInput || field.validity.typeMismatch) {
+    return field.id === "meeting-start" ? "Enter a valid date and time." : "Enter a valid value.";
+  }
+  if (field.validity.rangeUnderflow) return "Duration must be at least 1 minute.";
+  if (field.validity.stepMismatch) return "Enter a whole number of minutes.";
+  return field.validity.valid ? "" : "Check this value.";
+}
+
+function setUploadFieldError(field, message) {
+  const helper = document.querySelector(`#${field.id}-error`);
+  const hasError = Boolean(message);
+  field.closest(".field").classList.toggle("has-error", hasError);
+  field.setAttribute("aria-invalid", String(hasError));
+  helper.textContent = message;
+  helper.classList.toggle("hidden", !hasError);
+  if (hasError) {
+    field.setAttribute("aria-describedby", helper.id);
+    field.setAttribute("aria-errormessage", helper.id);
+  } else {
+    field.removeAttribute("aria-describedby");
+    field.removeAttribute("aria-errormessage");
+  }
+  return !hasError;
+}
+
+function validateUploadField(field) {
+  return setUploadFieldError(field, uploadFieldValidationMessage(field));
+}
+
+function validateUploadForm() {
+  let firstInvalid = null;
+  uploadValidationFields.forEach((field) => {
+    if (!validateUploadField(field) && !firstInvalid) firstInvalid = field;
+  });
+  firstInvalid?.focus();
+  return !firstInvalid;
+}
+
 function uploadFormHasDraft() {
   return ["#title", "#description", "#meeting-start", "#duration", "#raw-transcript"]
     .some((selector) => document.querySelector(selector).value.trim()) || Boolean(elements.fileInput.files.length);
@@ -1735,6 +1778,7 @@ function uploadFormHasDraft() {
 
 function resetUploadForm() {
   elements.form.reset();
+  uploadValidationFields.forEach((field) => setUploadFieldError(field, ""));
   elements.fileLabel.textContent = "Choose a transcript file";
   elements.formError.classList.add("hidden");
 }
@@ -1763,6 +1807,8 @@ async function useFile(file) {
     elements.transcript.value = await file.text();
     elements.fileLabel.textContent = file.name;
     if (!document.querySelector("#title").value) document.querySelector("#title").value = file.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ");
+    validateUploadField(elements.transcript);
+    validateUploadField(document.querySelector("#title"));
     elements.formError.classList.add("hidden");
   } catch {
     elements.formError.textContent = "The selected file could not be read as text.";
@@ -1790,6 +1836,12 @@ document.addEventListener("click", (event) => { if (!event.target.closest(".work
 
 elements.fileInput.addEventListener("change", () => useFile(elements.fileInput.files[0]));
 bindDropTarget(elements.modalFileZone, useFile);
+uploadValidationFields.forEach((field) => {
+  field.addEventListener("blur", () => validateUploadField(field));
+  field.addEventListener("input", () => {
+    if (field.closest(".field").classList.contains("has-error")) validateUploadField(field);
+  });
+});
 
 [elements.search, elements.dateFilter, elements.statusFilter].forEach((control) => control.addEventListener("input", () => { state.meetingPage = 1; renderMeetingList(); }));
 document.querySelector("#clear-meeting-filters").addEventListener("click", () => {
@@ -1997,6 +2049,7 @@ document.addEventListener("keydown", (event) => {
 elements.form.addEventListener("submit", async (event) => {
   event.preventDefault();
   elements.formError.classList.add("hidden");
+  if (!validateUploadForm()) return;
   elements.submitButton.disabled = true;
   const originalContent = elements.submitButton.innerHTML;
   elements.submitButton.textContent = "Generating insights…";

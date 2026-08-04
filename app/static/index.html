@@ -139,15 +139,15 @@
     <div id="modal-backdrop" class="modal-backdrop hidden" role="presentation">
       <section class="upload-modal" role="dialog" aria-modal="true" aria-labelledby="upload-title" aria-describedby="upload-description">
         <header class="modal-header"><div><p class="overline purple">New meeting</p><h2 id="upload-title">Upload a transcript</h2></div><button id="modal-close" class="icon-button" type="button" aria-label="Close" data-icon="close"></button></header>
-        <form id="summary-form">
+        <form id="summary-form" novalidate>
           <p id="upload-description" class="modal-description">Add a transcript and Memoir will organize the summary, decisions, and action items.</p>
           <div class="form-grid">
-            <label class="field full"><span>Meeting title</span><input id="title" name="title" placeholder="e.g. Product roadmap planning" required /></label>
+            <label class="field full"><span>Meeting title <small>Required</small></span><input id="title" name="title" placeholder="e.g. Product roadmap planning" required data-validate /><small id="title-error" class="field-error hidden" aria-live="polite"></small></label>
             <label class="field full"><span>Description <small>Optional</small></span><input id="description" name="description" placeholder="What was this meeting about?" /></label>
-            <label class="field"><span>Date and time <small>Optional</small></span><input id="meeting-start" name="meeting-start" type="datetime-local" /></label>
-            <label class="field"><span>Duration <small>Minutes</small></span><input id="duration" name="duration" type="number" min="1" step="1" placeholder="30" /></label>
+            <label class="field"><span>Date and time <small>Optional</small></span><input id="meeting-start" name="meeting-start" type="datetime-local" data-validate /><small id="meeting-start-error" class="field-error hidden" aria-live="polite"></small></label>
+            <label class="field"><span>Duration <small>Optional · minutes</small></span><input id="duration" name="duration" type="number" min="1" step="1" placeholder="30" data-validate /><small id="duration-error" class="field-error hidden" aria-live="polite"></small></label>
             <div class="field full"><span>Transcript</span><label class="modal-file-zone" id="modal-file-zone" for="transcript-file"><input class="file-input" id="transcript-file" name="transcript-file" type="file" accept=".txt,.md,.json,.srt,.vtt,text/plain,text/vtt,application/json" /><span data-icon="file"></span><strong id="file-label">Choose a transcript file</strong><small>TXT, MD, JSON, SRT, or VTT · drag and drop supported</small></label></div>
-            <label class="field full transcript-field"><span>Transcript text</span><textarea id="raw-transcript" name="raw-transcript" placeholder="Your uploaded transcript will appear here. You can also paste it directly." required></textarea></label>
+            <label class="field full transcript-field"><span>Transcript text <small>Required</small></span><textarea id="raw-transcript" name="raw-transcript" placeholder="Your uploaded transcript will appear here. You can also paste it directly." required data-validate></textarea><small id="raw-transcript-error" class="field-error hidden" aria-live="polite"></small></label>
           </div>
           <p id="form-error" class="form-error hidden" role="alert"></p>
           <footer class="modal-actions"><button id="cancel-button" class="text-button" type="button">Cancel</button><button id="submit-button" class="primary-button" type="submit"><span data-icon="sparkles"></span>Generate insights</button></footer>

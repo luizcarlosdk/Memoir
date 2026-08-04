@@ -2940,6 +2940,30 @@ a {
   box-shadow: none;
 }
 
+.field.has-error > span {
+  color: var(--md-sys-color-error);
+}
+
+.field.has-error > input,
+.field.has-error > textarea,
+.field.has-error > input:hover,
+.field.has-error > textarea:hover {
+  border: 2px solid var(--md-sys-color-error);
+  background: color-mix(in srgb, var(--md-sys-color-error-container) 24%, transparent);
+}
+
+.field.has-error > input:focus,
+.field.has-error > textarea:focus {
+  border-color: var(--md-sys-color-error);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--md-sys-color-error) 18%, transparent);
+}
+
+.field > .field-error {
+  color: var(--md-sys-color-error);
+  font: var(--md-sys-typescale-body-small);
+  font-weight: 500;
+}
+
 .modal-file-zone {
   position: relative;
   display: flex;

@@ -10,6 +10,7 @@ def test_frontend_ux_recovery_and_navigation_contracts() -> None:
     """Keep the usability affordances wired in the framework-free frontend."""
     html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     script = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
+    styles = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
 
     for element_id in (
         "meetings-error",
@@ -38,3 +39,11 @@ def test_frontend_ux_recovery_and_navigation_contracts() -> None:
     assert "elements.shell.inert = true" in script
     assert "More options" not in script
 
+    assert '<form id="summary-form" novalidate>' in html
+    for field_id in ("title", "meeting-start", "duration", "raw-transcript"):
+        assert f'id="{field_id}-error" class="field-error hidden"' in html
+    assert "function validateUploadForm()" in script
+    assert 'field.setAttribute("aria-invalid", String(hasError))' in script
+    assert 'field.addEventListener("blur", () => validateUploadField(field))' in script
+    assert ".field.has-error > input" in styles
+    assert ".field > .field-error" in styles
